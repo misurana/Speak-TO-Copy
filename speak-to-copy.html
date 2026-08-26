@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="description" content="Speak to Copy — a simple speech-to-text tool. Click the mic, talk, and copy your text.">
+<title>Speak to Copy — Speech to Text</title>
+<style>
+  :root {
+    color-scheme: light;
+    --accent:#4f46e5; --accent-d:#4338ca; --danger:#dc2626;
+    --bg:#f5f6fa; --card:#ffffff; --text:#1f2430; --muted:#6b7280; --border:#e5e7eb;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin:0; padding:0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    background: var(--bg); color: var(--text); min-height:100vh;
+    display:flex; flex-direction:column; align-items:center; padding: 26px 16px 44px;
+  }
+  .app { width:100%; max-width: 720px; }
+  header { text-align:center; margin-bottom: 20px; }
+  h1 { font-size: 1.6rem; margin:0 0 4px; letter-spacing:-.02em; }
+  header p { color: var(--muted); margin:0; font-size: .95rem; }
+  .card { background: var(--card); border:1px solid var(--border); border-radius:18px; padding: 22px; box-shadow: 0 2px 10px rgba(0,0,0,.05); }
+  .controls { display:flex; flex-direction:column; align-items:center; gap:14px; margin-bottom:18px; }
+  .mic-btn {
+    width:100px; height:100px; border-radius:50%; border:none; background: var(--accent); color:#fff;
+    cursor:pointer; display:flex; align-items:center; justify-content:center;
+    transition: transform .15s, background .2s; box-shadow: 0 8px 22px rgba(79,70,229,.35);
+  }
+  .mic-btn:hover { background: var(--accent-d); }
+  .mic-btn:active { transform: scale(.95); }
+  .mic-btn svg { width:44px; height:44px; }
+  .mic-btn.listening { background: var(--danger); animation: pulse 1.4s infinite; }
+  @keyframes pulse {
+    0%   { box-shadow:0 0 0 0 rgba(220,38,38,.5); }
+    70%  { box-shadow:0 0 0 24px rgba(220,38,38,0); }
+    100% { box-shadow:0 0 0 0 rgba(220,38,38,0); }
+  }
+  .status { font-size:.92rem; color:var(--muted); min-height:1.3em; text-align:center; }
+  .status.live { color: var(--danger); font-weight:600; }
+  .lang-row { display:flex; align-items:center; gap:8px; justify-content:center; flex-wrap:wrap; }
+  .lang-row label { font-size:.9rem; color:var(--muted); }
+  select { font-size:16px; padding:8px 10px; border-radius:10px; border:1px solid var(--border); background:#fff; color:var(--text); }
+  textarea {
+    width:100%; min-height:210px; resize:vertical; font-size:16px; line-height:1.55; padding:14px;
+    border-radius:12px; border:1px solid var(--border); background:#fff; color:var(--text); font-family:inherit;
+  }
+  textarea:focus { outline:2px solid var(--accent); border-color:var(--accent); }
+  .interim { min-height:1.4em; margin-top:8px; color:var(--muted); font-style:italic; font-size:.95rem; }
+  .meta { display:flex; justify-content:space-between; align-items:center; margin-top:6px; font-size:.8rem; color:var(--muted); gap:10px; }
+  .actions { display:flex; gap:10px; margin-top:14px; flex-wrap:wrap; }
+  .btn {
+    flex:1 1 auto; min-width:130px; font-size:15px; font-weight:600; padding:13px 16px; border-radius:12px;
+    border:1px solid var(--border); background:#fff; color:var(--text); cursor:pointer; transition: background .15s, transform .1s;
+  }
+  .btn:hover { background:#f3f4f6; }
+  .btn:active { transform: scale(.98); }
+  .btn.primary { background:var(--accent); color:#fff; border-color:var(--accent); }
+  .btn.primary:hover { background:var(--accent-d); }
+  .toast {
+    position:fixed; bottom:26px; left:50%; transform:translateX(-50%) translateY(20px);
+    background:#111827; color:#fff; padding:11px 20px; border-radius:999px; font-size:.9rem;
+    opacity:0; pointer-events:none; transition: opacity .25s, transform .25s;
+  }
+  .toast.show { opacity:1; transform:translateX(-50%) translateY(0); }
+  .notice {
+    background:#fef3c7; border:1px solid #fde68a; color:#92400e; padding:14px 16px;
+    border-radius:12px; font-size:.92rem; margin-bottom:16px; display:none; line-height:1.5;
+  }
+  footer { text-align:center; color:var(--muted); font-size:.8rem; margin-top:18px; line-height:1.6; }
+</style>
+</head>
+<body>
+  <div class="app">
+    <header>
+      <h1>🎙️ Speak to Copy</h1>
+      <p>Click the mic, start talking, then copy your text.</p>
+    </header>
+
+    <div id="notice" class="notice"></div>
+
+    <div class="card">
+      <div class="controls">
+        <button id="micBtn" class="mic-btn" aria-label="Start listening">
+          <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+            <path d="M12 15a3 3 0 0 0 3-3V6a3 3 0 0 0-6 0v6a3 3 0 0 0 3 3z"/>
+            <path d="M19 11a1 1 0 1 0-2 0 5 5 0 0 1-10 0 1 1 0 1 0-2 0 7 7 0 0 0 6 6.92V21a1 1 0 1 0 2 0v-3.08A7 7 0 0 0 19 11z"/>
+          </svg>
+        </button>
+        <div id="status" class="status">Tap the mic to start</div>
+        <div class="lang-row">
+          <label for="lang">Language</label>
+          <select id="lang">
+            <option value="en-US" selected>English (US)</option>
+            <option value="en-GB">English (UK)</option>
+            <option value="en-IN">English (India)</option>
+            <option value="es-ES">Spanish (Spain)</option>
+            <option value="es-MX">Spanish (Mexico)</option>
+            <option value="fr-FR">French</option>
+            <option value="de-DE">German</option>
+            <option value="it-IT">Italian</option>
+            <option value="pt-BR">Portuguese (Brazil)</option>
+            <option value="nl-NL">Dutch</option>
+            <option value="ru-RU">Russian</option>
+            <option value="tr-TR">Turkish</option>
+            <option value="ar-SA">Arabic</option>
+            <option value="hi-IN">Hindi</option>
+            <option value="ur-PK">Urdu</option>
+            <option value="zh-CN">Chinese (Mandarin)</option>
+            <option value="ja-JP">Japanese</option>
+            <option value="ko-KR">Korean</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="box-wrap">
+        <textarea id="output" placeholder="Your speech will appear here… (you can also type or edit directly)" aria-label="Transcribed text"></textarea>
+        <div id="interim" class="interim"></div>
+        <div class="meta">
+          <span id="count">0 words · 0 characters</span>
+          <span>Tip: you can select &amp; copy manually too</span>
+        </div>
+      </div>
+
+      <div class="actions">
+        <button id="copyBtn" class="btn primary">📋 Copy text</button>
+        <button id="clearBtn" class="btn">🗑️ Clear</button>
+      </div>
+    </div>
+
+    <footer>
+      Works best in <strong>Chrome</strong> or <strong>Edge</strong> (desktop or Android).<br>
+      Needs microphone permission and an internet connection.
+    </footer>
+  </div>
+
+  <div id="toast" class="toast"></div>
+
+<script>
+(function () {
+  var SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  var micBtn = document.getElementById('micBtn');
+  var statusEl = document.getElementById('status');
+  var output = document.getElementById('output');
+  var interimEl = document.getElementById('interim');
+  var copyBtn = document.getElementById('copyBtn');
+  var clearBtn = document.getElementById('clearBtn');
+  var langSel = document.getElementById('lang');
+  var countEl = document.getElementById('count');
+  var toast = document.getElementById('toast');
+  var notice = document.getElementById('notice');
+
+  var recognition = null;
+  var listening = false;
+  var manualStop = false;
+  var lastErrorMsg = '';
+  var toastTimer = null;
+
+  function showToast(msg) {
+    toast.textContent = msg;
+    toast.classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(function () { toast.classList.remove('show'); }, 1600);
+  }
+
+  function updateCount() {
+    var text = output.value.trim();
+    var words = text ? text.split(/\s+/).length : 0;
+    var chars = output.value.length;
+    countEl.textContent =
+      words + ' word' + (words === 1 ? '' : 's') + ' · ' +
+      chars + ' character' + (chars === 1 ? '' : 's');
+  }
+
+  if (!SR) {
+    notice.style.display = 'block';
+    notice.innerHTML = "⚠️ Your browser doesn't support speech recognition. " +
+      "Please open this in <strong>Google Chrome</strong> or <strong>Microsoft Edge</strong> " +
+      "(on desktop or Android). Firefox isn't supported, and Safari support is limited.";
+    micBtn.disabled = true;
+    micBtn.style.opacity = '.5';
+    micBtn.style.cursor = 'not-allowed';
+    statusEl.textContent = 'Speech recognition not available in this browser';
+  } else {
+    if (location.protocol === 'file:') {
+      notice.style.display = 'block';
+      notice.innerHTML = "ℹ️ You've opened this as a <strong>local file</strong>. " +
+        "Chrome and Edge block the speech service on local files, so it may stop immediately. " +
+        "To make it work, open it over a real web address (http/https) instead — " +
+        "hosting it free takes about a minute. Ask me and I'll walk you through it.";
+    }
+    recognition = new SR();
+    recognition.continuous = true;
+    recognition.interimResults = true;
+    recognition.lang = langSel.value;
+
+    recognition.onstart = function () {
+      listening = true;
+      micBtn.classList.add('listening');
+      micBtn.setAttribute('aria-label', 'Stop listening');
+      statusEl.textContent = '● Listening… speak now';
+      statusEl.classList.add('live');
+    };
+
+    recognition.onresult = function (event) {
+      var interim = '';
+      var finalChunk = '';
+      for (var i = event.resultIndex; i < event.results.length; i++) {
+        var t = event.results[i][0].transcript;
+        if (event.results[i].isFinal) { finalChunk += t; }
+        else { interim += t; }
+      }
+      if (finalChunk) {
+        var needsSpace = output.value.length > 0 && !/\s$/.test(output.value);
+        output.value += (needsSpace ? ' ' : '') + finalChunk.trim();
+        updateCount();
+        output.scrollTop = output.scrollHeight;
+      }
+      interimEl.textContent = interim;
+    };
+
+    recognition.onerror = function (e) {
+      if (e.error === 'not-allowed' || e.error === 'service-not-allowed') {
+        lastErrorMsg = '🚫 Microphone access is blocked. Click the mic or lock icon in your ' +
+          "browser's address bar, allow the microphone, then reload the page.";
+        manualStop = true;
+      } else if (e.error === 'network') {
+        lastErrorMsg = "🌐 Can't reach the speech service. This almost always happens when the " +
+          'page is opened as a local file — open it over http:// or https:// instead ' +
+          '(and check your internet connection).';
+        manualStop = true;
+      } else if (e.error === 'audio-capture') {
+        lastErrorMsg = '🎤 No microphone was found on this device.';
+        manualStop = true;
+      } else if (e.error === 'no-speech') {
+        statusEl.textContent = "Didn't catch anything yet — keep talking.";
+      } else if (e.error === 'aborted') {
+        /* usually from a manual stop — ignore */
+      } else {
+        lastErrorMsg = 'Error: ' + e.error + '. Try reloading the page.';
+        manualStop = true;
+      }
+    };
+
+    recognition.onend = function () {
+      // Continuous recognition can stop on its own; restart if the user still wants to listen.
+      if (listening && !manualStop) {
+        try { recognition.start(); return; } catch (err) {}
+      }
+      listening = false;
+      micBtn.classList.remove('listening');
+      micBtn.setAttribute('aria-label', 'Start listening');
+      statusEl.classList.remove('live');
+      interimEl.textContent = '';
+      if (lastErrorMsg) {
+        statusEl.textContent = lastErrorMsg;   // show the real reason, not a generic "Stopped"
+        lastErrorMsg = '';
+      } else {
+        statusEl.textContent = 'Stopped. Tap the mic to continue.';
+      }
+    };
+
+    micBtn.addEventListener('click', function () {
+      if (listening) {
+        manualStop = true;
+        recognition.stop();
+      } else {
+        manualStop = false;
+        lastErrorMsg = '';
+        try { recognition.start(); }
+        catch (err) { /* start() called too quickly after stop() */ }
+      }
+    });
+
+    langSel.addEventListener('change', function () {
+      recognition.lang = langSel.value;
+      if (listening) {
+        manualStop = true;
+        recognition.stop();
+        setTimeout(function () {
+          manualStop = false;
+          try { recognition.start(); } catch (err) {}
+        }, 300);
+      }
+    });
+  }
+
+  copyBtn.addEventListener('click', function () {
+    if (!output.value.trim()) { showToast('Nothing to copy yet'); return; }
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(output.value)
+        .then(function () { showToast('Copied to clipboard ✓'); })
+        .catch(function () { fallbackCopy(); });
+    } else {
+      fallbackCopy();
+    }
+  });
+
+  function fallbackCopy() {
+    output.select();
+    try { document.execCommand('copy'); showToast('Copied ✓'); }
+    catch (err) { showToast('Press Ctrl/Cmd + C to copy'); }
+    window.getSelection().removeAllRanges();
+  }
+
+  clearBtn.addEventListener('click', function () {
+    output.value = '';
+    interimEl.textContent = '';
+    updateCount();
+    output.focus();
+    showToast('Cleared');
+  });
+
+  output.addEventListener('input', updateCount);
+  updateCount();
+})();
+</script>
+</body>
+</html>
