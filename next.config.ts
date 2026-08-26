@@ -1,7 +1,1 @@
-import type { NextConfig } from "next";
-
-const nextConfig: NextConfig = {
-  /* config options here */
-};
-
-export default nextConfig;
+import type { NextConfig } from 'next'; const nextConfig: NextConfig = { async rewrites() { return [{ source: '/', destination: '/speak-to-copy.html' }]; } }; export default nextConfig;
