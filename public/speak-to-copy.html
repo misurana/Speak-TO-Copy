@@ -40,7 +40,11 @@
   html, body { margin: 0; padding: 0; }
   body {
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Noto Sans",
-                 "Noto Sans Devanagari", "Noto Sans Arabic", Arial, sans-serif;
+                 "Noto Sans Devanagari", "Noto Sans Bengali", "Noto Sans Tamil",
+                 "Noto Sans Telugu", "Noto Sans Gujarati", "Noto Sans Kannada",
+                 "Noto Sans Malayalam", "Noto Sans Gurmukhi", "Noto Nastaliq Urdu",
+                 "Noto Sans Arabic", "Noto Sans CJK SC", "Noto Sans CJK JP",
+                 "Microsoft YaHei", "Yu Gothic", Arial, sans-serif;
     background: linear-gradient(160deg, var(--bg1) 0%, var(--bg2) 45%, var(--bg1) 100%);
     color: var(--ink);
     min-height: 100vh;
@@ -186,6 +190,10 @@
     outline: none;
   }
   textarea:focus-visible { border-color: var(--brand); box-shadow: 0 0 0 3px rgba(79,70,229,.16); }
+  /* Indic and Nastaliq scripts clip their marks at tight line heights. */
+  textarea[data-script="indic"]    { line-height: 1.85; }
+  textarea[data-script="nastaliq"] { line-height: 2.1; font-size: 19px; }
+  textarea[dir="rtl"] { text-align: right; }
 
   .footer { display: flex; flex-direction: column; gap: 10px; }
   .counts { font-size: 12.5px; color: var(--muted); }
@@ -339,6 +347,51 @@
     o.value = l[0]; o.textContent = l[1];
     langSel.appendChild(o);
   });
+  // Writing direction and script class per language, so every entry in the list
+  // renders correctly and not just the Latin ones.
+  var RTL    = { "ur-PK": 1, "ar-SA": 1 };
+  var SCRIPT = {
+    "hi-IN": "indic", "bn-IN": "indic", "ta-IN": "indic", "te-IN": "indic",
+    "mr-IN": "indic", "gu-IN": "indic", "kn-IN": "indic", "ml-IN": "indic",
+    "pa-IN": "indic", "ur-PK": "nastaliq", "ar-SA": "nastaliq"
+  };
+  // If a browser's recognition service rejects a language, fall back to the
+  // closest one it almost certainly does have.
+  var FALLBACK = {
+    "ur-PK": "hi-IN", "pa-IN": "hi-IN", "mr-IN": "hi-IN", "gu-IN": "hi-IN",
+    "bn-IN": "hi-IN", "kn-IN": "en-IN", "ml-IN": "en-IN", "te-IN": "en-IN",
+    "ta-IN": "en-IN", "hi-IN": "en-IN", "en-IN": "en-US", "en-GB": "en-US",
+    "es-ES": "en-US", "fr-FR": "en-US", "de-DE": "en-US", "pt-BR": "en-US",
+    "ar-SA": "en-US", "ru-RU": "en-US", "zh-CN": "en-US", "ja-JP": "en-US"
+  };
+
+  function applyLangChrome() {
+    var code = langSel.value;
+    output.setAttribute("dir", RTL[code] ? "rtl" : "ltr");
+    output.setAttribute("lang", code);
+    if (SCRIPT[code]) output.setAttribute("data-script", SCRIPT[code]);
+    else output.removeAttribute("data-script");
+  }
+
+  // Languages this browser has already rejected, remembered per device.
+  function unsupportedSet() {
+    try { return JSON.parse(lsGet("stc.unsupported") || "[]"); } catch (e) { return []; }
+  }
+  function markUnsupported(code) {
+    var list = unsupportedSet();
+    if (list.indexOf(code) < 0) { list.push(code); lsSet("stc.unsupported", JSON.stringify(list)); }
+    paintUnsupported();
+  }
+  function paintUnsupported() {
+    var list = unsupportedSet();
+    for (var i = 0; i < langSel.options.length; i++) {
+      var o = langSel.options[i];
+      var base = o.getAttribute("data-label") || o.textContent;
+      o.setAttribute("data-label", base);
+      o.textContent = base + (list.indexOf(o.value) >= 0 ? "  \u2014 not available here" : "");
+    }
+  }
+
   (function pickLang() {
     var saved = lsGet("stc.lang");
     var codes = LANGS.map(function (l) { return l[0]; });
@@ -435,25 +488,40 @@
 
   // ===================== transcript model =====================
   //
-  // Three layers, and the top two are the reason nothing gets overwritten:
+  //  STRICT NO-REPEAT INVARIANT  —  read this before touching anything below.
   //
-  //   locked     text that is final forever — committed segments plus the user's own typing
-  //   segFinals  the CURRENT results list's final phrases, stored BY THEIR INDEX
-  //   interim    the live, not-yet-final words
+  //  1. The visible text is ALWAYS exactly:  phrases(committed + acc) + interim.
+  //     Nothing else may write to `output.value` except render().
+  //  2. `committed` and `acc` are arrays of PHRASES, never concatenated strings.
+  //     Phrase granularity is what makes repeats detectable; once text is
+  //     flattened into a string, a 15-word Hindi sentence is indistinguishable
+  //     from a 15-word replay of it.
+  //  3. A phrase enters `acc` ONLY through absorb(). absorb() is the single
+  //     place allowed to grow the session transcript. No caller may push to
+  //     `acc` directly.
+  //  4. absorb() must be IDEMPOTENT: absorb(x) followed by absorb(x) must leave
+  //     `acc` unchanged. Every engine re-sends its whole results list on every
+  //     event, so a non-idempotent absorb duplicates by construction. This is
+  //     the exact bug that produced "S1 S1 S2 S1 S2 S3".
+  //  5. NEVER flush mid-session and then re-read the same results list. The old
+  //     code did: on a detected reset it pushed the finals into the committed
+  //     text, cleared its index map, then fell straight through to re-read all
+  //     the finals from the very same list — re-adding everything it had just
+  //     committed. Flushing now happens ONLY in flushSegment(), only when the
+  //     recognition object is being discarded, and never from inside onresult.
+  //  6. absorb() matches against committed+acc, NOT against acc alone. After a
+  //     flush `acc` is empty, so a replay at a session boundary would otherwise
+  //     look like new content. This is why case C searches the whole transcript.
+  //  7. `acc` grows ONLY through pushNew(), which applies the word-level
+  //     replay trim. Never push to `acc` from anywhere else.
+  //  8. Any new engine quirk gets handled INSIDE absorb() by adding a match
+  //     case, never by adding another flush point.
   //
-  // Engines disagree wildly about `event.results`. Chrome on desktop grows one
-  // cumulative list per session. Android Chrome ends the session after each
-  // sentence. iOS Safari reuses index 0 over and over, and sometimes hands back a
-  // SHORTER list than before. The old code did `sessionFinal = <rebuilt string>`,
-  // so any engine that shrank or reset its list silently erased words that had
-  // already been finalised — the overwriting. Writing finals by index, and
-  // flushing to `locked` the moment a reset is detected, makes that impossible:
-  // text only ever moves downward into `locked`, never out of it.
+  //  The regression suite in test/ encodes cases 1-6. Run it before shipping.
 
-  var locked    = "";
-  var segFinals = [];     // sparse: index -> final transcript
-  var interim   = "";
-  var segMaxLen = 0;      // largest results-list length seen in this segment
+  var committed = [];     // phrases that are final forever (+ the user's edits)
+  var acc       = [];     // phrases absorbed from the CURRENT recognition session
+  var interim   = "";     // live, not-yet-final words
 
   var recognition  = null;
   var starting     = false;
@@ -462,7 +530,6 @@
   var watchdog     = null;
   var saveTimer    = null;
   var lastActivity = 0;
-  var lastResultAt = 0;
   var netRetries   = 0;
   var emptyStreak  = 0;
   var stamps       = [];
@@ -470,67 +537,152 @@
   var wakeLock     = null;
   var userEditing  = false;
 
-  function joinParts(a, b) {
-    a = a || ""; b = b || "";
-    if (!a) return b;
-    if (!b) return a;
-    return a + (!/\s$/.test(a) && !/^\s/.test(b) ? " " : "") + b;
-  }
+  // Scripts that are written without spaces between words.
+  var SCRIPTLESS = /[　-〿぀-ヿ㐀-䶿一-鿿豈-﫿＀-￯]/;
+
+  // Punctuation across every script in the language list, so that "नमस्ते।" and
+  // "नमस्ते" compare equal when looking for a repeat.
+  var PUNCT = /[.,!?;:'"‘’“”–—\-।॥،؛؟۔、。！，：；？]/g;
 
   function norm(s) {
-    return s.toLowerCase().replace(/[.,!?;:’'"—-]/g, "").replace(/\s+/g, " ").trim();
+    return (s || "").toLowerCase().replace(PUNCT, "").replace(/\s+/g, " ").trim();
   }
 
-  // Some engines replay the tail of the previous utterance at the start of the
-  // next one. Trim the longest word-aligned overlap (up to 12 words) so a
-  // restart can neither duplicate nor swallow words.
-  //
-  // The minimum is TWO words on purpose. A one-word overlap is far more often
-  // real speech ("very very good", "no no") than an engine replay, and silently
-  // eating a real word is worse than leaving a rare duplicate.
-  var MIN_OVERLAP = 2;
-
-  function appendDedup(a, b) {
-    a = (a || "").replace(/\s+$/, "");
-    b = (b || "").replace(/^\s+/, "");
-    if (!a) return b;
+  // Join two fragments with a space, except where either side is CJK, which
+  // takes no spaces. Getting this wrong corrupts Chinese and Japanese output.
+  function glue(a, b) {
+    if (!a) return b || "";
     if (!b) return a;
-    var aw = a.split(/\s+/), bw = b.split(/\s+/);
-    var max = Math.min(12, aw.length, bw.length);
+    if (SCRIPTLESS.test(a.slice(-1)) || SCRIPTLESS.test(b.charAt(0))) return a + b;
+    if (/\s$/.test(a) || /^\s/.test(b)) return a + b;
+    return a + " " + b;
+  }
+
+  function phrasesToText(list) {
+    var out = "";
+    for (var i = 0; i < list.length; i++) out = glue(out, list[i]);
+    return out;
+  }
+
+  function sameSlice(a, aFrom, b, bFrom, n) {
+    for (var i = 0; i < n; i++) {
+      if (norm(a[aFrom + i]) !== norm(b[bFrom + i])) return false;
+    }
+    return true;
+  }
+
+  // ---------------------------------------------------------------------
+  // absorb(cur): merge the engine's CURRENT list of final phrases into `acc`.
+  //
+  // Idempotent by construction: every case either rewrites `acc` to something
+  // derived from `cur`, or appends only the part of `cur` that `acc` does not
+  // already end with. Calling it twice with the same `cur` is a no-op.
+  //
+  // The four shapes real engines produce:
+  //   A. growth        acc=[X]      cur=[X,Y]        -> acc=[X,Y]
+  //   B. last revised  acc=[X,"hi"] cur=[X,"hi all"] -> acc=[X,"hi all"]
+  //   C. list trimmed  acc=[X,Y,Z]  cur=[Y,Z]        -> acc unchanged  <-- the bug
+  //   D. list restarted acc=[X]     cur=[Y]          -> acc=[X,Y]
+  // ---------------------------------------------------------------------
+  // Final net: a replay that straddles a phrase boundary. Phrase matching
+  // cannot see it, because the phrases genuinely differ -- the engine resends
+  // only the TAIL of the last sentence glued to the start of the next:
+  //   committed: "please send the invoice today"
+  //   new:       "invoice today and confirm by email"
+  // Trim the longest word-level overlap between the end of what we already
+  // have and the start of the first new phrase.
+  //
+  // MIN_OVERLAP is 2 words on purpose: a one-word overlap is far more often
+  // real speech ("that is very" + "very good") than a replay, and eating a
+  // real word is worse than leaving a rare duplicate. The cap is 40 words,
+  // not 12 -- a 15-word Hindi sentence sailed straight past the old 12-word
+  // limit, which is how "S1 S1 S2" reached the screen.
+  var MIN_OVERLAP = 2, MAX_OVERLAP = 40;
+
+  function trimReplay(prevTail, first) {
+    if (!prevTail || !first) return first;
+    if (SCRIPTLESS.test(prevTail) || SCRIPTLESS.test(first)) return first;  // no word boundaries
+    var aw = norm(prevTail).split(" "), bwRaw = first.split(/\s+/), bw = norm(first).split(" ");
+    if (bw.length !== bwRaw.length) return first;        // normalisation changed the shape; leave it
+    var max = Math.min(MAX_OVERLAP, aw.length, bw.length);
     for (var n = max; n >= MIN_OVERLAP; n--) {
-      if (norm(aw.slice(aw.length - n).join(" ")) === norm(bw.slice(0, n).join(" "))) {
-        bw = bw.slice(n);
-        break;
+      if (aw.slice(aw.length - n).join(" ") === bw.slice(0, n).join(" ")) {
+        var rest = bwRaw.slice(n).join(" ");
+        return rest || null;                              // null => drop the phrase entirely
       }
     }
-    if (!bw.length) return a;
-    return a + " " + bw.join(" ");
+    return first;
   }
 
-  function segText() {
-    var parts = [];
-    for (var i = 0; i < segFinals.length; i++) {
-      if (segFinals[i]) parts.push(segFinals[i]);
+  // The ONLY way a phrase enters `acc`. Applies trimReplay to the first phrase
+  // appended after existing text, so every append path is covered.
+  function pushNew(cur, from) {
+    for (var i = from; i < cur.length; i++) {
+      var phrase = cur[i];
+      if (i === from) {
+        var all = committed.concat(acc);
+        if (all.length) {
+          phrase = trimReplay(all[all.length - 1], phrase);
+          if (!phrase) continue;
+        }
+      }
+      acc.push(phrase);
     }
-    return parts.join(" ");
   }
 
-  // Move everything the engine has finalised into `locked`. Called before any
-  // reset, on every session end, and before any teardown — so a word that was
-  // finalised once can never be lost.
+  function absorb(cur) {
+    if (!cur || !cur.length) return;
+
+    // A + B: index-aligned inside the CURRENT session. Everything before the
+    // last entry matches, and the last either matches or was extended in place.
+    if (acc.length && cur.length >= acc.length && sameSlice(acc, 0, cur, 0, acc.length - 1)) {
+      var tailOld = norm(acc[acc.length - 1]);
+      var tailNew = norm(cur[acc.length - 1]);
+      if (tailNew === tailOld || tailNew.indexOf(tailOld) === 0) {
+        acc = cur.slice();
+        return;
+      }
+    }
+
+    // C + E: match against the WHOLE transcript, committed phrases included.
+    // Matching only against `acc` is what let a replay through at a session
+    // boundary: after a flush `acc` is empty, so the engine re-sending the
+    // sentence it just finalised looked like brand-new content. The longest
+    // suffix of committed+acc that equals a prefix of `cur` is already ours;
+    // only what follows it is appended, and only ever to `acc`.
+    var all = committed.concat(acc);
+    for (var k = Math.min(all.length, cur.length); k > 0; k--) {
+      if (sameSlice(all, all.length - k, cur, 0, k)) {
+        pushNew(cur, k);
+        return;
+      }
+    }
+
+    // A single cell growing in place (iOS reuses index 0 for a whole utterance).
+    if (cur.length === 1 && acc.length &&
+        norm(cur[0]).indexOf(norm(acc[acc.length - 1])) === 0) {
+      acc[acc.length - 1] = cur[0];
+      return;
+    }
+
+    // D: genuinely new content.
+    pushNew(cur, 0);
+  }
+
+  // Commit the session's phrases. The ONLY place `acc` empties into `committed`,
+  // and only ever called when the recognition object is being thrown away.
   function flushSegment() {
-    var t = segText();
-    if (t) { locked = appendDedup(locked, t); segmentCount++; }
-    segFinals = [];
-    segMaxLen = 0;
+    // Dedup already happened in absorb(); this only moves phrases down a layer.
+    for (var i = 0; i < acc.length; i++) {
+      if (acc[i]) { committed.push(acc[i]); segmentCount++; }
+    }
+    acc = [];
     interim = "";
   }
 
   function render() {
     if (userEditing) return;            // never stomp on a live manual edit
-    // Dedup against `locked` live, not only at segment end, so a replayed tail
-    // never shows up on screen in the first place.
-    var text = appendDedup(locked, joinParts(segText(), interim));
+    var text = glue(phrasesToText(committed.concat(acc)), interim);
     if (output.value !== text) {
       var atEnd = (output.selectionStart === output.value.length);
       output.value = text;
@@ -541,9 +693,30 @@
     queueSave();
   }
 
+  // Replace the whole transcript with text the user typed or pasted.
+  function adoptText(t) {
+    committed = t ? [t.replace(/\s+$/, "")] : [];
+    acc = [];
+    interim = "";
+  }
+
+  // Word counting that is correct for scripts without spaces.
+  function countWords(s) {
+    s = (s || "").trim();
+    if (!s) return 0;
+    if (window.Intl && Intl.Segmenter) {
+      try {
+        var seg = new Intl.Segmenter(langSel.value, { granularity: "word" });
+        var n = 0, it = seg.segment(s)[Symbol.iterator](), step;
+        while (!(step = it.next()).done) { if (step.value.isWordLike) n++; }
+        return n;
+      } catch (e) { /* fall through */ }
+    }
+    return s.split(/\s+/).filter(Boolean).length;
+  }
+
   function updateCounts() {
-    var v = output.value.trim();
-    wordCount.textContent = v ? v.split(/\s+/).filter(Boolean).length : 0;
+    wordCount.textContent = countWords(output.value);
     charCount.textContent = output.value.length;
   }
 
@@ -583,35 +756,21 @@
     };
 
     r.onresult = function (ev) {
-      lastActivity = lastResultAt = Date.now();
+      lastActivity = Date.now();
       netRetries = 0;
-      var list = ev.results;
 
-      // --- reset detection: the heart of the no-overwrite guarantee ---
-      // (a) the engine handed back a shorter list than before, or
-      // (b) an index we already recorded as FINAL has gone back to interim.
-      var reset = list.length < segMaxLen;
-      if (!reset) {
-        for (var k = 0; k < segFinals.length; k++) {
-          if (segFinals[k] && k < list.length && !list[k].isFinal) { reset = true; break; }
-        }
-      }
-      if (reset) flushSegment();
-      if (list.length > segMaxLen) segMaxLen = list.length;
-
-      var live = "";
-      for (var i = 0; i < list.length; i++) {
-        var res = list[i];
+      // Collect this event's finals as an ORDERED PHRASE LIST, then hand it to
+      // absorb(). No flushing here — see invariant 5.
+      var finals = [], live = "";
+      for (var i = 0; i < ev.results.length; i++) {
+        var res = ev.results[i];
         var t = (res[0] && res[0].transcript) || "";
-        if (res.isFinal) {
-          var f = t.trim();
-          if (f) segFinals[i] = f;        // write by index — nothing else is touched
-        } else if (t) {
-          live = joinParts(live, t);
-        }
+        if (res.isFinal) { t = t.trim(); if (t) finals.push(t); }
+        else if (t) live = glue(live, t);
       }
+      absorb(finals);
       interim = live;
-      if (segText()) emptyStreak = 0;
+      if (acc.length) emptyStreak = 0;
       render();
     };
 
@@ -656,11 +815,21 @@
           setStatus("Network hiccup — retrying (" + netRetries + "/4)…", "warn");
           return;
         }
-      } else if (e === "language-not-supported") {
-        listening = false;
-        setStatus("This language isn't supported here.", "err");
-        showNotice("The selected language is not available in this browser's recognition service. " +
-                   "Try <strong>English (India)</strong> or <strong>English (US)</strong>.");
+      } else if (e === "language-not-supported" || e === "bad-grammar") {
+        var bad = langSel.value;
+        markUnsupported(bad);
+        var alt = FALLBACK[bad] || "en-US";
+        var badName = langSel.options[langSel.selectedIndex].getAttribute("data-label") || bad;
+        langSel.value = alt;
+        lsSet("stc.lang", alt);
+        applyLangChrome();
+        paintDiag();
+        var altName = langSel.options[langSel.selectedIndex].getAttribute("data-label") || alt;
+        showNotice("<strong>" + badName + "</strong> is not available in this browser's recognition " +
+                   "service, so it has been switched to <strong>" + altName + "</strong> and marked in " +
+                   "the list. Chrome and Edge carry the most languages; Safari carries fewer.");
+        setStatus("Switched language \u2014 still listening.", "warn");
+        if (listening) { hardRestart("language-fallback"); return; }
       } else {
         setStatus("Recognition error: " + e, "err");
       }
@@ -692,7 +861,7 @@
       // Restart gap is where words get lost, so keep it as short as the engine
       // tolerates. Only back off when sessions keep coming back empty (silence)
       // or after a network error.
-      if (!segText() && !interim) emptyStreak++; else emptyStreak = 0;
+      if (!acc.length && !interim) emptyStreak++; else emptyStreak = 0;
       var delay = 0;
       if (netRetries > 0)      delay = 500 * Math.pow(2, netRetries - 1);
       else if (emptyStreak > 3) delay = 500;
@@ -786,8 +955,7 @@
     if (listening) return;
     hideNotice();
     // Adopt whatever is in the box right now as the permanent base.
-    locked = output.value ? output.value.replace(/\s+$/, "") : "";
-    segFinals = []; segMaxLen = 0; interim = "";
+    adoptText(output.value);
     listening = true;
     starting = false; startFails = 0; netRetries = 0; emptyStreak = 0; stamps = [];
     recognition = null;
@@ -824,6 +992,8 @@
 
   langSel.addEventListener("change", function () {
     lsSet("stc.lang", langSel.value);
+    applyLangChrome();
+    updateCounts();          // word counting is language-aware
     paintDiag();
     if (listening) hardRestart("lang-change");
   });
@@ -879,7 +1049,7 @@
     var prev = lsGet("stc.text");
     if (prev && prev.trim()) {
       output.value = prev;
-      locked = prev.replace(/\s+$/, "");
+      adoptText(prev);
       showNotice("Your previous text was restored from this device. Press <strong>Clear</strong> to start fresh.");
     }
   })();
@@ -965,7 +1135,7 @@
   clearBtn.addEventListener("click", function () {
     if (clearBtn.dataset.mode === "undo") {
       output.value = undoBuffer || "";
-      locked = output.value; segFinals = []; segMaxLen = 0; interim = "";
+      adoptText(output.value);
       clearBtn.dataset.mode = ""; clearBtn.textContent = "Clear";
       updateCounts(); saveNow();
       return;
@@ -973,7 +1143,7 @@
     if (!output.value) return;
     undoBuffer = output.value;
     if (listening) hardRestart("clear");
-    output.value = ""; locked = ""; segFinals = []; segMaxLen = 0; interim = "";
+    output.value = ""; adoptText("");
     updateCounts(); saveNow();
     clearBtn.dataset.mode = "undo";
     clearBtn.textContent = "Undo";
@@ -993,8 +1163,7 @@
     clearTimeout(output._editTimer);
     output._editTimer = setTimeout(function () {
       userEditing = false;
-      locked = output.value.replace(/\s+$/, "");
-      segFinals = []; segMaxLen = 0; interim = "";
+      adoptText(output.value);
       if (listening) hardRestart("manual-edit");
     }, 600);
   });
@@ -1003,6 +1172,8 @@
     setSub("iOS stops dictation every few seconds — this page stitches it back together.");
   }
 
+  applyLangChrome();
+  paintUnsupported();
   updateCounts();
   paintDiag();
 })();
