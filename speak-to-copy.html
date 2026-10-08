@@ -2,221 +2,215 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<meta name="theme-color" content="#4f46e5" />
+<meta name="mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
 <title>Speak to Copy — Voice to Text</title>
 <style>
   :root {
-    color-scheme: light;
-    --bg: #0f172a;
+    --bg1: #eef2ff;
+    --bg2: #f8fafc;
     --panel: #ffffff;
     --ink: #0f172a;
     --muted: #64748b;
+    --faint: #94a3b8;
     --line: #e2e8f0;
+    --field: #fcfcfd;
     --brand: #4f46e5;
     --brand-dark: #4338ca;
     --danger: #dc2626;
     --ok: #16a34a;
-    --warn: #b45309;
+    --warn: #92400e;
     --warn-bg: #fef3c7;
+    --warn-line: #fde68a;
+    --tap: 46px;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg1: #0b1020; --bg2: #0f172a;
+      --panel: #121a2e; --ink: #e8edf7; --muted: #93a1b8; --faint: #64748b;
+      --line: #25304a; --field: #0d1424;
+      --brand: #6366f1; --brand-dark: #4f46e5;
+      --warn: #fcd34d; --warn-bg: #3b2f0b; --warn-line: #6b5411;
+    }
   }
   * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html { -webkit-text-size-adjust: 100%; }
   html, body { margin: 0; padding: 0; }
   body {
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Noto Sans", "Noto Sans Devanagari", Arial, sans-serif;
-    background: linear-gradient(160deg, #eef2ff 0%, #f8fafc 45%, #eef2ff 100%);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Noto Sans",
+                 "Noto Sans Devanagari", "Noto Sans Arabic", Arial, sans-serif;
+    background: linear-gradient(160deg, var(--bg1) 0%, var(--bg2) 45%, var(--bg1) 100%);
     color: var(--ink);
     min-height: 100vh;
     min-height: 100dvh;
     display: flex;
     justify-content: center;
-    padding: 16px;
+    align-items: flex-start;
   }
+
   .app {
     width: 100%;
-    max-width: 720px;
+    max-width: 780px;
     background: var(--panel);
     border: 1px solid var(--line);
-    border-radius: 20px;
-    box-shadow: 0 12px 40px rgba(15, 23, 42, 0.10);
-    padding: 22px;
     display: flex;
     flex-direction: column;
-    gap: 16px;
+    gap: 14px;
+    min-height: 100vh;
+    min-height: 100dvh;
+    padding: calc(16px + env(safe-area-inset-top)) calc(14px + env(safe-area-inset-right))
+             calc(14px + env(safe-area-inset-bottom)) calc(14px + env(safe-area-inset-left));
   }
-  header h1 {
-    margin: 0;
-    font-size: 22px;
-    letter-spacing: -0.02em;
+  @media (min-width: 800px) {
+    body { padding: 24px 16px; align-items: center; }
+    .app {
+      min-height: 0;
+      border-radius: 22px;
+      padding: 24px;
+      box-shadow: 0 18px 50px rgba(15, 23, 42, 0.12);
+    }
   }
-  header p {
-    margin: 4px 0 0;
-    color: var(--muted);
-    font-size: 14px;
-  }
+
+  header h1 { margin: 0; font-size: clamp(19px, 5vw, 23px); letter-spacing: -0.02em; }
+  header p { margin: 4px 0 0; color: var(--muted); font-size: 14px; line-height: 1.45; }
 
   .notice {
     display: none;
-    font-size: 13px;
-    line-height: 1.4;
-    padding: 10px 12px;
-    border-radius: 12px;
+    font-size: 13.5px;
+    line-height: 1.5;
+    padding: 11px 13px;
+    border-radius: 13px;
     background: var(--warn-bg);
     color: var(--warn);
-    border: 1px solid #fde68a;
+    border: 1px solid var(--warn-line);
   }
   .notice.show { display: block; }
+  .notice code {
+    background: rgba(0,0,0,0.07); padding: 1px 5px; border-radius: 5px;
+    font-size: 0.92em; word-break: break-all;
+  }
+  .notice a { color: inherit; }
 
-  .controls {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 10px;
-    align-items: center;
-  }
-  .field {
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-    flex: 1 1 180px;
-  }
-  .field label {
-    font-size: 12px;
-    color: var(--muted);
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
-  }
-  select {
-    appearance: none;
-    -webkit-appearance: none;
-    font-size: 15px;
-    padding: 11px 12px;
-    border: 1px solid var(--line);
-    border-radius: 12px;
-    background: #fff;
-    color: var(--ink);
-    width: 100%;
-  }
-
-  .sens {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    font-size: 14px;
-    color: var(--ink);
-    padding: 6px 2px;
-    user-select: none;
-    cursor: pointer;
-    flex: 1 1 100%;
-  }
-  .sens input { width: 18px; height: 18px; accent-color: var(--brand); }
-  .sens small { color: var(--muted); font-size: 12px; }
-
-  .mic-row {
-    display: flex;
-    align-items: center;
-    gap: 14px;
-  }
+  /* ---------- mic bar ---------- */
+  .mic-row { display: flex; align-items: center; gap: 14px; }
   .mic-btn {
     flex: 0 0 auto;
-    width: 68px;
-    height: 68px;
+    width: 72px; height: 72px;
     border-radius: 50%;
     border: none;
     background: var(--brand);
     color: #fff;
-    font-size: 28px;
+    font-size: 30px;
     cursor: pointer;
-    display: grid;
-    place-items: center;
-    transition: transform 0.08s ease, background 0.2s ease;
-    box-shadow: 0 6px 18px rgba(79, 70, 229, 0.35);
+    display: grid; place-items: center;
+    transition: transform .08s ease, background .2s ease;
+    box-shadow: 0 6px 20px rgba(79, 70, 229, .38);
+    touch-action: manipulation;
   }
-  .mic-btn:active { transform: scale(0.94); }
-  .mic-btn.listening {
-    background: var(--danger);
-    box-shadow: 0 0 0 0 rgba(220, 38, 38, 0.55);
-    animation: pulse 1.5s infinite;
-  }
+  .mic-btn:active { transform: scale(.94); }
+  .mic-btn:disabled { opacity: .45; cursor: not-allowed; box-shadow: none; }
+  .mic-btn.listening { background: var(--danger); animation: pulse 1.6s infinite; }
   @keyframes pulse {
-    0%   { box-shadow: 0 0 0 0 rgba(220, 38, 38, 0.55); }
-    70%  { box-shadow: 0 0 0 18px rgba(220, 38, 38, 0); }
-    100% { box-shadow: 0 0 0 0 rgba(220, 38, 38, 0); }
+    0%   { box-shadow: 0 0 0 0 rgba(220,38,38,.55); }
+    70%  { box-shadow: 0 0 0 20px rgba(220,38,38,0); }
+    100% { box-shadow: 0 0 0 0 rgba(220,38,38,0); }
   }
-  .mic-meta { display: flex; flex-direction: column; gap: 8px; flex: 1 1 auto; min-width: 0; }
-  .status {
-    font-size: 14px;
-    font-weight: 600;
-    color: var(--muted);
+  @media (prefers-reduced-motion: reduce) {
+    .mic-btn.listening { animation: none; box-shadow: 0 0 0 5px rgba(220,38,38,.3); }
   }
+  .mic-meta { display: flex; flex-direction: column; gap: 7px; flex: 1 1 auto; min-width: 0; }
+  .status { font-size: 14.5px; font-weight: 650; color: var(--muted); line-height: 1.35; }
   .status.live { color: var(--danger); }
-  .status.err { color: var(--danger); }
+  .status.err  { color: var(--danger); }
+  .status.warn { color: var(--warn); }
+  .substatus { font-size: 12px; color: var(--faint); }
 
-  /* Mic level meter */
-  .meter {
-    width: 100%;
-    height: 10px;
-    background: #eef2f7;
-    border-radius: 999px;
-    overflow: hidden;
-    display: none;
-  }
+  .meter { width: 100%; height: 9px; background: var(--field); border: 1px solid var(--line);
+           border-radius: 999px; overflow: hidden; display: none; }
   .meter.show { display: block; }
   .meter > span {
-    display: block;
-    height: 100%;
-    width: 0%;
-    border-radius: 999px;
+    display: block; height: 100%; width: 0%; border-radius: 999px;
     background: linear-gradient(90deg, #22c55e, #eab308 70%, #ef4444);
-    transition: width 0.06s linear;
+    transition: width .06s linear;
   }
 
+  /* ---------- fields ---------- */
+  .field { display: flex; flex-direction: column; gap: 5px; }
+  .field > label {
+    font-size: 11.5px; color: var(--muted); font-weight: 700;
+    text-transform: uppercase; letter-spacing: .05em;
+  }
+  select {
+    appearance: none; -webkit-appearance: none;
+    font: inherit; font-size: 16px;            /* 16px stops iOS zoom-on-focus */
+    min-height: var(--tap);
+    padding: 11px 38px 11px 12px;
+    border: 1px solid var(--line); border-radius: 13px;
+    background: var(--panel) url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath fill='%2364748b' d='M4 6l4 4 4-4z'/%3E%3C/svg%3E") no-repeat right 12px center/14px;
+    color: var(--ink); width: 100%;
+  }
+
+  .toggle {
+    display: flex; align-items: flex-start; gap: 10px;
+    font-size: 14.5px; line-height: 1.4; color: var(--ink);
+    min-height: var(--tap); padding: 7px 2px;
+    user-select: none; -webkit-user-select: none; cursor: pointer;
+  }
+  .toggle input { width: 20px; height: 20px; margin: 1px 0 0; accent-color: var(--brand); flex: 0 0 auto; }
+  .toggle small { display: block; color: var(--muted); font-size: 12px; margin-top: 2px; }
+
+  details.adv { border-top: 1px solid var(--line); padding-top: 8px; }
+  details.adv > summary {
+    font-size: 13px; font-weight: 650; color: var(--muted);
+    cursor: pointer; padding: 9px 2px; list-style: none; min-height: 40px;
+    display: flex; align-items: center; gap: 6px;
+  }
+  details.adv > summary::-webkit-details-marker { display: none; }
+  details.adv > summary::before { content: "▸"; font-size: 11px; }
+  details.adv[open] > summary::before { content: "▾"; }
+  .adv-body { display: flex; flex-direction: column; gap: 2px; padding-bottom: 6px; }
+
+  /* ---------- transcript ---------- */
   textarea {
     width: 100%;
-    min-height: 200px;
+    flex: 1 1 auto;
+    min-height: 180px;
     resize: vertical;
-    font-size: 17px;
-    line-height: 1.6;
+    font: inherit;
+    font-size: 17px; line-height: 1.6;
     padding: 14px;
-    border: 1px solid var(--line);
-    border-radius: 14px;
-    background: #fcfcfd;
-    color: var(--ink);
+    border: 1px solid var(--line); border-radius: 15px;
+    background: var(--field); color: var(--ink);
     outline: none;
   }
-  textarea:focus { border-color: var(--brand); box-shadow: 0 0 0 3px rgba(79,70,229,0.12); }
-  .interim { color: var(--muted); }
+  textarea:focus-visible { border-color: var(--brand); box-shadow: 0 0 0 3px rgba(79,70,229,.16); }
 
-  .footer {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 10px;
-    justify-content: space-between;
+  .footer { display: flex; flex-direction: column; gap: 10px; }
+  .counts { font-size: 12.5px; color: var(--muted); }
+  .actions { display: grid; grid-template-columns: 1fr 1fr; gap: 9px; }
+  @media (min-width: 560px) {
+    .footer { flex-direction: row; align-items: center; justify-content: space-between; }
+    .actions { grid-template-columns: auto auto auto; }
   }
-  .counts { font-size: 13px; color: var(--muted); }
-  .actions { display: flex; gap: 10px; flex-wrap: wrap; }
   .btn {
-    font-size: 15px;
-    font-weight: 600;
-    padding: 11px 16px;
-    border-radius: 12px;
-    border: 1px solid var(--line);
-    background: #fff;
-    color: var(--ink);
-    cursor: pointer;
+    font: inherit; font-size: 15px; font-weight: 650;
+    min-height: var(--tap); padding: 11px 18px;
+    border-radius: 13px; border: 1px solid var(--line);
+    background: var(--panel); color: var(--ink);
+    cursor: pointer; touch-action: manipulation;
   }
-  .btn:active { transform: scale(0.98); }
+  .btn:active { transform: scale(.98); }
   .btn.primary { background: var(--brand); border-color: var(--brand); color: #fff; }
-  .btn.primary:hover { background: var(--brand-dark); }
-  .btn.ghost { background: #fff; }
-  .btn.copied { background: var(--ok); border-color: var(--ok); color: #fff; }
+  .btn.copied  { background: var(--ok); border-color: var(--ok); color: #fff; }
+  .btn:disabled { opacity: .5; cursor: not-allowed; }
 
-  .hint { font-size: 12px; color: var(--muted); line-height: 1.5; }
-
-  @media (max-width: 520px) {
-    .app { padding: 16px; border-radius: 16px; }
-    header h1 { font-size: 20px; }
-    .mic-btn { width: 60px; height: 60px; font-size: 24px; }
+  .hint { font-size: 12px; color: var(--muted); line-height: 1.55; margin: 0; }
+  .diag {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 11px; color: var(--faint); line-height: 1.6;
+    word-break: break-word; margin: 0;
   }
 </style>
 </head>
@@ -224,45 +218,66 @@
   <main class="app">
     <header>
       <h1>🎙️ Speak to Copy</h1>
-      <p>Tap the mic, speak, and your words appear below — ready to copy.</p>
+      <p>Tap the mic and speak. Your words are captured continuously and kept safe — nothing is overwritten.</p>
     </header>
 
     <div id="notice" class="notice"></div>
 
-    <div class="controls">
-      <div class="field">
-        <label for="lang">Language</label>
-        <select id="lang" aria-label="Recognition language"></select>
-      </div>
-      <label class="sens" for="sensitive">
-        <input type="checkbox" id="sensitive" checked />
-        <span>High sensitivity for soft voices
-          <small>&nbsp;(reduces noise filtering — best in a quiet room)</small>
-        </span>
-      </label>
-    </div>
-
     <div class="mic-row">
       <button id="micBtn" class="mic-btn" aria-label="Start listening" title="Start / stop listening">🎤</button>
       <div class="mic-meta">
-        <div id="status" class="status">Tap the mic to start.</div>
-        <div id="meter" class="meter"><span id="meterFill"></span></div>
+        <div id="status" class="status" role="status" aria-live="polite">Tap the mic to start.</div>
+        <div id="substatus" class="substatus"></div>
+        <div id="meter" class="meter" aria-hidden="true"><span id="meterFill"></span></div>
       </div>
     </div>
 
-    <textarea id="output" placeholder="Your spoken words will appear here… You can also type or edit freely." spellcheck="true"></textarea>
+    <div class="field">
+      <label for="lang">Language</label>
+      <select id="lang" aria-label="Recognition language"></select>
+    </div>
+
+    <textarea id="output" placeholder="Your spoken words will appear here… You can also type or edit freely." spellcheck="true" autocapitalize="sentences"></textarea>
 
     <div class="footer">
       <div class="counts"><span id="wordCount">0</span> words · <span id="charCount">0</span> characters</div>
       <div class="actions">
         <button id="copyBtn" class="btn primary">Copy</button>
-        <button id="clearBtn" class="btn ghost">Clear</button>
+        <button id="shareBtn" class="btn" hidden>Share</button>
+        <button id="clearBtn" class="btn">Clear</button>
       </div>
     </div>
 
+    <details class="adv">
+      <summary>Settings &amp; diagnostics</summary>
+      <div class="adv-body">
+        <label class="toggle" for="continuous">
+          <input type="checkbox" id="continuous" checked />
+          <span>Keep listening continuously
+            <small>Restarts instantly through pauses. On phones the engine stops after every sentence, so this is what makes long dictation possible.</small>
+          </span>
+        </label>
+        <label class="toggle" for="wake">
+          <input type="checkbox" id="wake" checked />
+          <span>Keep the screen awake while listening
+            <small>Stops the phone sleeping mid-sentence. Supported on Chrome for Android and recent Safari.</small>
+          </span>
+        </label>
+        <label class="toggle" for="showMeter">
+          <input type="checkbox" id="showMeter" />
+          <span>Show mic level meter
+            <small>Off by default — a second microphone stream can silence recognition on some devices.</small>
+          </span>
+        </label>
+        <p class="hint" id="support"></p>
+        <p class="diag" id="diag"></p>
+      </div>
+    </details>
+
     <p class="hint">
-      Works best in Chrome or Edge (desktop &amp; Android). Safari has partial support; Firefox is not supported.
-      Needs microphone permission and an internet connection. Keep speaking naturally — it now listens continuously and won't cut off during short pauses.
+      Works in Chrome and Edge (Windows, macOS, Android) and Safari (macOS, iOS 14.5+). Firefox has no speech
+      recognition at all. Needs microphone permission, an internet connection, and an <strong>https</strong>
+      address — a file opened straight from disk cannot work.
     </p>
   </main>
 
@@ -270,24 +285,35 @@
 (function () {
   "use strict";
 
-  // ---------- Elements ----------
-  var micBtn     = document.getElementById("micBtn");
-  var statusEl   = document.getElementById("status");
-  var output     = document.getElementById("output");
-  var langSel    = document.getElementById("lang");
-  var sensitive  = document.getElementById("sensitive");
-  var copyBtn    = document.getElementById("copyBtn");
-  var clearBtn   = document.getElementById("clearBtn");
-  var wordCount  = document.getElementById("wordCount");
-  var charCount  = document.getElementById("charCount");
-  var noticeEl   = document.getElementById("notice");
-  var meterEl    = document.getElementById("meter");
-  var meterFill  = document.getElementById("meterFill");
+  function $(id) { return document.getElementById(id); }
 
-  // ---------- Languages ----------
+  var micBtn    = $("micBtn");
+  var statusEl  = $("status");
+  var subEl     = $("substatus");
+  var output    = $("output");
+  var langSel   = $("lang");
+  var contChk   = $("continuous");
+  var wakeChk   = $("wake");
+  var meterChk  = $("showMeter");
+  var copyBtn   = $("copyBtn");
+  var shareBtn  = $("shareBtn");
+  var clearBtn  = $("clearBtn");
+  var wordCount = $("wordCount");
+  var charCount = $("charCount");
+  var noticeEl  = $("notice");
+  var meterEl   = $("meter");
+  var meterFill = $("meterFill");
+  var diagEl    = $("diag");
+  var supportEl = $("support");
+
+  // ===================== storage helpers (never throw) =====================
+  function lsGet(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
+  function lsSet(k, v) { try { localStorage.setItem(k, v); } catch (e) {} }
+
+  // ===================== languages =====================
   var LANGS = [
-    ["en-US", "English (US)"],
     ["en-IN", "English (India)"],
+    ["en-US", "English (US)"],
     ["en-GB", "English (UK)"],
     ["hi-IN", "हिन्दी — Hindi"],
     ["bn-IN", "বাংলা — Bengali"],
@@ -310,320 +336,675 @@
   ];
   LANGS.forEach(function (l) {
     var o = document.createElement("option");
-    o.value = l[0];
-    o.textContent = l[1];
+    o.value = l[0]; o.textContent = l[1];
     langSel.appendChild(o);
   });
-  langSel.value = "en-US";
+  (function pickLang() {
+    var saved = lsGet("stc.lang");
+    var codes = LANGS.map(function (l) { return l[0]; });
+    if (saved && codes.indexOf(saved) >= 0) { langSel.value = saved; return; }
+    var nav = (navigator.language || "en-IN");
+    if (codes.indexOf(nav) >= 0) { langSel.value = nav; return; }
+    var base = nav.split("-")[0].toLowerCase();
+    for (var i = 0; i < codes.length; i++) {
+      if (codes[i].split("-")[0].toLowerCase() === base) { langSel.value = codes[i]; return; }
+    }
+    langSel.value = "en-IN";
+  })();
 
-  // ---------- Feature detection ----------
+  // ===================== environment =====================
   var SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-  var isIOS = /iP(hone|ad|od)/.test(navigator.userAgent) ||
+  var ua = navigator.userAgent;
+  var isAndroid = /Android/i.test(ua);
+  var isIOS = /iP(hone|ad|od)/.test(ua) ||
               (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+  var isSafari = /^((?!chrome|android|crios|fxios|edgi).)*safari/i.test(ua);
+  var isFirefox = /Firefox\//.test(ua) || /FxiOS/i.test(ua);
+  var isMobile = isAndroid || isIOS ||
+                 (navigator.maxTouchPoints > 1 && Math.min(screen.width, screen.height) < 820);
+  // iOS: every browser is Safari's engine underneath, so Chrome/Edge on iOS behave like Safari.
+  var iosWebkit = isIOS;
+  var localHost = /^(localhost|127\.0\.0\.1|\[::1\]|::1)$/.test(location.hostname);
+  var secureOk = (typeof window.isSecureContext === "boolean")
+                   ? window.isSecureContext
+                   : (location.protocol === "https:" || localHost);
 
-  function showNotice(msg) { noticeEl.textContent = msg; noticeEl.classList.add("show"); }
+  function showNotice(html) { noticeEl.innerHTML = html; noticeEl.classList.add("show"); }
+  function hideNotice() { noticeEl.classList.remove("show"); noticeEl.innerHTML = ""; }
+  function setStatus(msg, cls) {
+    statusEl.textContent = msg;
+    statusEl.className = "status" + (cls ? " " + cls : "");
+  }
+  function setSub(msg) { subEl.textContent = msg || ""; }
 
-  if (location.protocol === "file:") {
-    showNotice("⚠️ You opened this file directly. Speech recognition needs to run from a web address (http/https). " +
-               "Please host it (e.g. free on Netlify Drop or GitHub Pages) or use a local server — otherwise you'll get a 'network' error.");
+  var listening = false;
+  var lastError = "-";
+  var restartCount = 0;
+  var segmentCount = 0;
+  var droppedGuess = 0;
+
+  function paintDiag() {
+    var engine = SR ? (window.SpeechRecognition ? "SpeechRecognition" : "webkitSpeechRecognition") : "none";
+    diagEl.textContent =
+      "engine=" + engine +
+      " | platform=" + (isIOS ? "ios" : isAndroid ? "android" : "desktop") +
+      (isMobile ? "/mobile" : "") +
+      " | origin=" + location.protocol + "//" + (location.hostname || "(none)") +
+      " | secure=" + (secureOk ? "yes" : "no") +
+      " | lang=" + langSel.value +
+      " | state=" + (listening ? "listening" : "idle") +
+      " | segments=" + segmentCount +
+      " | restarts=" + restartCount +
+      " | lastError=" + lastError;
   }
 
-  if (!SR) {
-    statusEl.textContent = "Speech recognition isn't supported in this browser.";
+  supportEl.textContent =
+    "Detected: " + (isIOS ? "iOS / iPadOS" : isAndroid ? "Android" : "desktop") +
+    (SR ? " with speech recognition available." : " without speech recognition.") +
+    (iosWebkit ? " On iOS the system stops dictation every few seconds; this page stitches the pieces back together automatically."
+               : isAndroid ? " On Android the engine ends after each sentence; this page restarts it instantly so nothing is lost."
+                           : "");
+
+  function disableMic() {
     micBtn.disabled = true;
-    micBtn.style.opacity = "0.5";
-    showNotice("This browser doesn't support the Web Speech API. Please use Google Chrome or Microsoft Edge (desktop or Android). " +
-               "On iPhone/iPad, use the latest Safari — support is partial.");
-    return;
+    micBtn.setAttribute("aria-disabled", "true");
   }
 
-  // ---------- State ----------
-  var recognition = null;
-  var listening   = false;   // user's intent (are we supposed to be listening?)
-  var starting    = false;   // guard against double-start
-  var committed   = "";      // text finalized across restarts + user's own edits
-  var sessionFinal = "";     // finalized text within the CURRENT recognition session
-  var restartTimer = null;
+  // ===================== hard blockers =====================
+  if (location.protocol === "file:") {
+    setStatus("Cannot run from a local file.", "err");
+    showNotice("<strong>This page was opened as a file.</strong> Browsers refuse to send audio to the speech " +
+               "service from a <code>file://</code> address, so recognition always fails with a <em>network</em> " +
+               "error here. Open the deployed <code>https://</code> address, or run <code>npm run dev</code> and " +
+               "use <code>http://localhost:3000</code>.");
+    disableMic(); paintDiag(); return;
+  }
+  if (isFirefox || !SR) {
+    setStatus("Speech recognition isn't available in this browser.", "err");
+    showNotice("This browser has no Web Speech API. Use <strong>Chrome</strong> or <strong>Edge</strong> on " +
+               "Windows, macOS or Android, or <strong>Safari</strong> on iPhone, iPad and Mac. " +
+               "Firefox does not support it on any platform.");
+    disableMic(); paintDiag(); return;
+  }
+  if (!secureOk) {
+    setStatus("Needs a secure (https) address.", "err");
+    showNotice("This page is served over an insecure address, so the browser blocks microphone access. " +
+               "Open the <code>https://</code> URL, or use <code>http://localhost</code> for local testing.");
+    disableMic(); paintDiag(); return;
+  }
 
-  // ---------- Text composition (the anti-duplication core) ----------
-  // Display = committed  +  this session's finalized text  +  live interim text.
-  // We NEVER append final results blindly; each result event rebuilds the session's
-  // text from the engine's own results list, so a word can never be added twice.
+  // ===================== transcript model =====================
+  //
+  // Three layers, and the top two are the reason nothing gets overwritten:
+  //
+  //   locked     text that is final forever — committed segments plus the user's own typing
+  //   segFinals  the CURRENT results list's final phrases, stored BY THEIR INDEX
+  //   interim    the live, not-yet-final words
+  //
+  // Engines disagree wildly about `event.results`. Chrome on desktop grows one
+  // cumulative list per session. Android Chrome ends the session after each
+  // sentence. iOS Safari reuses index 0 over and over, and sometimes hands back a
+  // SHORTER list than before. The old code did `sessionFinal = <rebuilt string>`,
+  // so any engine that shrank or reset its list silently erased words that had
+  // already been finalised — the overwriting. Writing finals by index, and
+  // flushing to `locked` the moment a reset is detected, makes that impossible:
+  // text only ever moves downward into `locked`, never out of it.
+
+  var locked    = "";
+  var segFinals = [];     // sparse: index -> final transcript
+  var interim   = "";
+  var segMaxLen = 0;      // largest results-list length seen in this segment
+
+  var recognition  = null;
+  var starting     = false;
+  var startFails   = 0;
+  var restartTimer = null;
+  var watchdog     = null;
+  var saveTimer    = null;
+  var lastActivity = 0;
+  var lastResultAt = 0;
+  var netRetries   = 0;
+  var emptyStreak  = 0;
+  var stamps       = [];
+  var resumeAfterHide = false;
+  var wakeLock     = null;
+  var userEditing  = false;
+
   function joinParts(a, b) {
     a = a || ""; b = b || "";
     if (!a) return b;
     if (!b) return a;
-    var needSpace = !/\s$/.test(a) && !/^\s/.test(b);
-    return a + (needSpace ? " " : "") + b;
+    return a + (!/\s$/.test(a) && !/^\s/.test(b) ? " " : "") + b;
   }
 
-  function render(interim) {
-    var text = joinParts(committed, sessionFinal);
-    text = joinParts(text, interim || "");
-    output.value = text;
+  function norm(s) {
+    return s.toLowerCase().replace(/[.,!?;:’'"—-]/g, "").replace(/\s+/g, " ").trim();
+  }
+
+  // Some engines replay the tail of the previous utterance at the start of the
+  // next one. Trim the longest word-aligned overlap (up to 12 words) so a
+  // restart can neither duplicate nor swallow words.
+  //
+  // The minimum is TWO words on purpose. A one-word overlap is far more often
+  // real speech ("very very good", "no no") than an engine replay, and silently
+  // eating a real word is worse than leaving a rare duplicate.
+  var MIN_OVERLAP = 2;
+
+  function appendDedup(a, b) {
+    a = (a || "").replace(/\s+$/, "");
+    b = (b || "").replace(/^\s+/, "");
+    if (!a) return b;
+    if (!b) return a;
+    var aw = a.split(/\s+/), bw = b.split(/\s+/);
+    var max = Math.min(12, aw.length, bw.length);
+    for (var n = max; n >= MIN_OVERLAP; n--) {
+      if (norm(aw.slice(aw.length - n).join(" ")) === norm(bw.slice(0, n).join(" "))) {
+        bw = bw.slice(n);
+        break;
+      }
+    }
+    if (!bw.length) return a;
+    return a + " " + bw.join(" ");
+  }
+
+  function segText() {
+    var parts = [];
+    for (var i = 0; i < segFinals.length; i++) {
+      if (segFinals[i]) parts.push(segFinals[i]);
+    }
+    return parts.join(" ");
+  }
+
+  // Move everything the engine has finalised into `locked`. Called before any
+  // reset, on every session end, and before any teardown — so a word that was
+  // finalised once can never be lost.
+  function flushSegment() {
+    var t = segText();
+    if (t) { locked = appendDedup(locked, t); segmentCount++; }
+    segFinals = [];
+    segMaxLen = 0;
+    interim = "";
+  }
+
+  function render() {
+    if (userEditing) return;            // never stomp on a live manual edit
+    // Dedup against `locked` live, not only at segment end, so a replayed tail
+    // never shows up on screen in the first place.
+    var text = appendDedup(locked, joinParts(segText(), interim));
+    if (output.value !== text) {
+      var atEnd = (output.selectionStart === output.value.length);
+      output.value = text;
+      if (atEnd) { try { output.setSelectionRange(text.length, text.length); } catch (e) {} }
+      output.scrollTop = output.scrollHeight;
+    }
     updateCounts();
-    // keep caret/scroll at the end while dictating
-    output.scrollTop = output.scrollHeight;
+    queueSave();
   }
 
   function updateCounts() {
     var v = output.value.trim();
-    var words = v ? v.split(/\s+/).filter(Boolean).length : 0;
-    wordCount.textContent = words;
+    wordCount.textContent = v ? v.split(/\s+/).filter(Boolean).length : 0;
     charCount.textContent = output.value.length;
   }
 
-  // ---------- Recognition setup ----------
+  function queueSave() {
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(function () { lsSet("stc.text", output.value); }, 400);
+  }
+  function saveNow() { clearTimeout(saveTimer); lsSet("stc.text", output.value); }
+
+  // ===================== recognition =====================
+  // A fresh object per session: a reused one that has been aborted leaves Chrome
+  // throwing InvalidStateError on every later start().
   function buildRecognition() {
     var r = new SR();
     r.lang = langSel.value;
-    r.continuous = true;       // keep listening through pauses (helps soft/slow speakers)
-    r.interimResults = true;   // show words live
+    r.continuous = !iosWebkit;    // iOS ignores it and behaves worse when set
+    r.interimResults = true;
     r.maxAlternatives = 1;
 
     r.onstart = function () {
       starting = false;
+      startFails = 0;
+      lastActivity = Date.now();
       setStatus("Listening… speak now.", "live");
+      setSub(isMobile ? "Keep this screen in front — phones stop dictation in the background."
+                      : "Speak naturally; pauses are fine.");
       micBtn.classList.add("listening");
       micBtn.setAttribute("aria-label", "Stop listening");
+      paintDiag();
     };
 
-    r.onresult = function (event) {
-      // Rebuild THIS session's final + interim from scratch every event.
-      // Because we read the full results list and replace (not append),
-      // repeated/duplicated words cannot accumulate.
-      var finalText = "";
-      var interimText = "";
-      for (var i = 0; i < event.results.length; i++) {
-        var res = event.results[i];
-        var t = res[0] ? res[0].transcript : "";
-        if (res.isFinal) {
-          finalText = joinParts(finalText, t.trim());
-        } else {
-          interimText = joinParts(interimText, t);
+    r.onaudiostart  = function () { lastActivity = Date.now(); };
+    r.onsoundstart  = function () { lastActivity = Date.now(); };
+    r.onspeechstart = function () {
+      lastActivity = Date.now();
+      setStatus("Hearing you…", "live");
+    };
+
+    r.onresult = function (ev) {
+      lastActivity = lastResultAt = Date.now();
+      netRetries = 0;
+      var list = ev.results;
+
+      // --- reset detection: the heart of the no-overwrite guarantee ---
+      // (a) the engine handed back a shorter list than before, or
+      // (b) an index we already recorded as FINAL has gone back to interim.
+      var reset = list.length < segMaxLen;
+      if (!reset) {
+        for (var k = 0; k < segFinals.length; k++) {
+          if (segFinals[k] && k < list.length && !list[k].isFinal) { reset = true; break; }
         }
       }
-      sessionFinal = finalText;
-      render(interimText);
+      if (reset) flushSegment();
+      if (list.length > segMaxLen) segMaxLen = list.length;
+
+      var live = "";
+      for (var i = 0; i < list.length; i++) {
+        var res = list[i];
+        var t = (res[0] && res[0].transcript) || "";
+        if (res.isFinal) {
+          var f = t.trim();
+          if (f) segFinals[i] = f;        // write by index — nothing else is touched
+        } else if (t) {
+          live = joinParts(live, t);
+        }
+      }
+      interim = live;
+      if (segText()) emptyStreak = 0;
+      render();
     };
 
-    r.onerror = function (event) {
-      var e = event.error;
-      if (e === "no-speech" || e === "aborted") {
-        // Common + harmless (esp. for quiet speakers). Let onend auto-restart.
-        return;
-      }
+    r.onerror = function (ev) {
+      var e = ev.error;
+      lastError = e || "unknown";
+      paintDiag();
+
+      if (e === "no-speech" || e === "aborted") return;   // harmless; onend handles it
+
       if (e === "not-allowed" || e === "service-not-allowed") {
         listening = false;
-        setStatus("Microphone blocked. Allow mic access in your browser settings, then tap the mic again.", "err");
-        showNotice("Microphone permission was denied. Click the 🔒/ⓘ icon in the address bar → allow Microphone → reload.");
+        setStatus("Microphone blocked.", "err");
+        if (iosWebkit) {
+          showNotice("Safari needs permission for both the microphone <em>and</em> speech recognition. " +
+                     "Open <strong>Settings → Safari → Microphone</strong> and allow this site, then " +
+                     "reload. On iOS also check <strong>Settings → General → Keyboard → Enable " +
+                     "Dictation</strong>.");
+        } else if (isAndroid) {
+          showNotice("Chrome could not use the microphone. Tap the padlock in the address bar → " +
+                     "<strong>Permissions → Microphone → Allow</strong>, and check Android " +
+                     "<strong>Settings → Apps → Chrome → Permissions → Microphone</strong>.");
+        } else {
+          showNotice("Microphone permission was denied. Click the padlock / ⓘ icon in the address bar " +
+                     "→ Site settings → <strong>Microphone: Allow</strong> → reload. On Windows also " +
+                     "check Settings → Privacy &amp; security → Microphone.");
+        }
       } else if (e === "audio-capture") {
         listening = false;
-        setStatus("No microphone found. Check that a mic is connected and enabled.", "err");
+        setStatus("No microphone found.", "err");
+        showNotice("No usable microphone. Check one is connected and set as the default input, and that no " +
+                   "other app or browser tab is holding it exclusively.");
       } else if (e === "network") {
+        netRetries++;
+        if (netRetries > 4) {
+          listening = false;
+          setStatus("Network error — recognition service unreachable.", "err");
+          showNotice("The browser could not reach the speech recognition service. Check your internet " +
+                     "connection, and any VPN, proxy, firewall or blocking extension. On mobile data a weak " +
+                     "signal will also cause this.");
+        } else {
+          setStatus("Network hiccup — retrying (" + netRetries + "/4)…", "warn");
+          return;
+        }
+      } else if (e === "language-not-supported") {
         listening = false;
-        setStatus("Network error. Speech recognition needs an internet connection (and a real web address, not file://).", "err");
+        setStatus("This language isn't supported here.", "err");
+        showNotice("The selected language is not available in this browser's recognition service. " +
+                   "Try <strong>English (India)</strong> or <strong>English (US)</strong>.");
       } else {
         setStatus("Recognition error: " + e, "err");
       }
-      stopMeter();
-      micBtn.classList.remove("listening");
+
+      if (!listening) finish();
     };
 
     r.onend = function () {
-      // Commit this session's finalized text so it survives the restart,
-      // then reset the session buffer so nothing gets counted twice.
-      committed = joinParts(committed, sessionFinal);
-      sessionFinal = "";
-      render("");
+      flushSegment();        // commit before anything else can touch the buffers
+      render();
 
-      if (listening) {
-        // Auto-restart to keep a continuous listening experience.
-        clearTimeout(restartTimer);
-        restartTimer = setTimeout(function () {
-          if (!listening) return;
-          try {
-            starting = true;
-            recognition.lang = langSel.value;
-            recognition.start();
-          } catch (err) {
-            // If start() throws (already started / transient), try once more shortly.
-            starting = false;
-            setTimeout(function () { if (listening) safeStart(); }, 350);
-          }
-        }, 250);
-      } else {
-        micBtn.classList.remove("listening");
-        micBtn.setAttribute("aria-label", "Start listening");
-        setStatus("Stopped. Tap the mic to continue.", "");
-        stopMeter();
+      if (!listening) { finish(); return; }
+      if (!contChk.checked) { listening = false; finish(); return; }
+
+      // Runaway guard
+      var now = Date.now();
+      stamps.push(now);
+      stamps = stamps.filter(function (t) { return now - t < 20000; });
+      if (stamps.length > 24) {
+        listening = false;
+        setStatus("Recognition keeps dropping out.", "err");
+        showNotice("The engine restarted more than 24 times in 20 seconds, so listening was stopped to save " +
+                   "your battery. Usually another app or tab is using the microphone, or the mic level meter " +
+                   "is conflicting — turn it off under Settings, close other tabs using the mic, and try again.");
+        finish();
+        return;
       }
+
+      // Restart gap is where words get lost, so keep it as short as the engine
+      // tolerates. Only back off when sessions keep coming back empty (silence)
+      // or after a network error.
+      if (!segText() && !interim) emptyStreak++; else emptyStreak = 0;
+      var delay = 0;
+      if (netRetries > 0)      delay = 500 * Math.pow(2, netRetries - 1);
+      else if (emptyStreak > 3) delay = 500;
+      else if (emptyStreak > 1) delay = 150;
+      else                      delay = iosWebkit ? 80 : 20;
+
+      restartCount++;
+      paintDiag();
+      clearTimeout(restartTimer);
+      restartTimer = setTimeout(function () { if (listening) safeStart(); }, delay);
+      if (!/err|warn/.test(statusEl.className)) setSub("Reconnecting…");
     };
 
     return r;
   }
 
   function safeStart() {
-    if (starting) return;
+    if (!listening || starting) return;
+    if (!recognition) recognition = buildRecognition();
+    recognition.lang = langSel.value;
+    starting = true;
     try {
-      starting = true;
-      recognition.lang = langSel.value;
       recognition.start();
     } catch (err) {
       starting = false;
+      startFails++;
+      lastError = "start:" + ((err && err.name) || "error");
+      paintDiag();
+      try { recognition.abort(); } catch (e2) {}
+      recognition = null;
+
+      // iOS and some Android builds will only start from a real user gesture.
+      // After a few failures, stop looping and ask for a tap.
+      if (startFails >= 4) {
+        listening = false;
+        setStatus("Tap the mic to continue.", "warn");
+        setSub("");
+        showNotice("This browser needs a fresh tap to resume dictation. Your text so far is safe — " +
+                   "tap the mic and keep going.");
+        finish();
+        return;
+      }
+      setTimeout(function () { if (listening) safeStart(); }, 250 * startFails);
     }
   }
 
-  function setStatus(msg, cls) {
-    statusEl.textContent = msg;
-    statusEl.className = "status" + (cls ? " " + cls : "");
+  function hardRestart(why) {
+    lastError = why;
+    paintDiag();
+    starting = false;
+    if (recognition) {
+      try { recognition.onend = null; recognition.onresult = null; recognition.abort(); } catch (e) {}
+    }
+    flushSegment();
+    render();
+    recognition = null;
+    if (listening) setTimeout(function () { if (listening) safeStart(); }, 120);
   }
 
-  // ---------- Start / stop ----------
+  function finish() {
+    clearTimeout(restartTimer);
+    clearInterval(watchdog); watchdog = null;
+    micBtn.classList.remove("listening");
+    micBtn.setAttribute("aria-label", "Start listening");
+    stopMeter();
+    releaseWake();
+    saveNow();
+    if (!/err|warn/.test(statusEl.className)) {
+      setStatus("Stopped. Tap the mic to continue.", "");
+      setSub("");
+    }
+    paintDiag();
+  }
+
+  // ===================== screen wake lock =====================
+  function acquireWake() {
+    if (!wakeChk.checked || !("wakeLock" in navigator) || wakeLock) return;
+    try {
+      navigator.wakeLock.request("screen").then(function (lk) {
+        wakeLock = lk;
+        lk.addEventListener("release", function () { wakeLock = null; });
+      }).catch(function () {});
+    } catch (e) {}
+  }
+  function releaseWake() {
+    if (wakeLock) { try { wakeLock.release(); } catch (e) {} wakeLock = null; }
+  }
+
+  // ===================== start / stop =====================
   function startListening() {
     if (listening) return;
-    // Adopt whatever is currently in the box (user may have typed/edited) as the base.
-    committed = output.value ? output.value.replace(/\s+$/, "") : "";
-    sessionFinal = "";
+    hideNotice();
+    // Adopt whatever is in the box right now as the permanent base.
+    locked = output.value ? output.value.replace(/\s+$/, "") : "";
+    segFinals = []; segMaxLen = 0; interim = "";
     listening = true;
-
-    if (!recognition) recognition = buildRecognition();
-    recognition.lang = langSel.value;
+    starting = false; startFails = 0; netRetries = 0; emptyStreak = 0; stamps = [];
+    recognition = null;
 
     setStatus("Starting…", "live");
-    startMeter();   // best-effort visual mic meter (skipped on iOS to avoid mic conflicts)
+    setSub("");
+    micBtn.classList.add("listening");
+    acquireWake();
+    if (meterChk.checked && !isMobile) startMeter();
     safeStart();
+
+    // Watchdog: browsers can sit in "listening" with the mic open and emit
+    // neither a result nor an error. Rebuild the session if nothing happens.
+    clearInterval(watchdog);
+    watchdog = setInterval(function () {
+      if (!listening) return;
+      var idle = Date.now() - lastActivity;
+      if (idle > (isMobile ? 7000 : 10000)) { droppedGuess++; hardRestart("watchdog"); }
+    }, 2000);
   }
 
   function stopListening() {
     listening = false;
     clearTimeout(restartTimer);
-    if (recognition) {
-      try { recognition.stop(); } catch (e) {}
-    }
-    micBtn.classList.remove("listening");
-    micBtn.setAttribute("aria-label", "Start listening");
-    setStatus("Stopped. Tap the mic to continue.", "");
-    stopMeter();
+    if (recognition) { try { recognition.stop(); } catch (e) {} }
+    flushSegment();
+    render();
+    finish();
   }
 
   micBtn.addEventListener("click", function () {
-    if (listening) stopListening();
-    else startListening();
+    if (listening) stopListening(); else startListening();
   });
 
-  // Restart cleanly if the language changes mid-session.
   langSel.addEventListener("change", function () {
-    if (listening) {
-      var wasListening = true;
-      stopListening();
-      setTimeout(function () { if (wasListening) startListening(); }, 300);
+    lsSet("stc.lang", langSel.value);
+    paintDiag();
+    if (listening) hardRestart("lang-change");
+  });
+
+  wakeChk.addEventListener("change", function () {
+    lsSet("stc.wake", wakeChk.checked ? "1" : "0");
+    if (listening) { if (wakeChk.checked) acquireWake(); else releaseWake(); }
+  });
+  contChk.addEventListener("change", function () {
+    lsSet("stc.cont", contChk.checked ? "1" : "0");
+  });
+  meterChk.addEventListener("change", function () {
+    if (!listening) return;
+    if (meterChk.checked && !isMobile) startMeter(); else stopMeter();
+  });
+  if (lsGet("stc.wake") === "0") wakeChk.checked = false;
+  if (lsGet("stc.cont") === "0") contChk.checked = false;
+  if (isMobile) {
+    meterChk.checked = false;
+    meterChk.disabled = true;
+    meterChk.parentNode.querySelector("small").textContent =
+      "Disabled on phones and tablets — a second microphone stream stops recognition there.";
+  }
+
+  // ===================== backgrounding =====================
+  // A phone that locks, or an app switch, kills recognition. Commit the text,
+  // then resume automatically when the page comes back.
+  document.addEventListener("visibilitychange", function () {
+    if (document.hidden) {
+      saveNow();
+      if (listening) {
+        resumeAfterHide = true;
+        listening = false;
+        clearTimeout(restartTimer);
+        if (recognition) { try { recognition.abort(); } catch (e) {} }
+        flushSegment(); render();
+        clearInterval(watchdog); watchdog = null;
+        releaseWake();
+        micBtn.classList.remove("listening");
+        setStatus("Paused while the page was hidden.", "warn");
+        setSub("Resumes when you come back.");
+      }
+    } else if (resumeAfterHide) {
+      resumeAfterHide = false;
+      setTimeout(function () { startListening(); }, 250);
     }
   });
+  window.addEventListener("pagehide", saveNow);
+  window.addEventListener("beforeunload", saveNow);
 
-  // ---------- Live mic-level meter (visual feedback + gain priming) ----------
+  // ===================== restore a previous draft =====================
+  (function restore() {
+    var prev = lsGet("stc.text");
+    if (prev && prev.trim()) {
+      output.value = prev;
+      locked = prev.replace(/\s+$/, "");
+      showNotice("Your previous text was restored from this device. Press <strong>Clear</strong> to start fresh.");
+    }
+  })();
+
+  // ===================== mic level meter (optional, desktop only) =====================
   var audioCtx = null, analyser = null, micStream = null, rafId = null;
 
   function startMeter() {
-    // On iOS, holding a getUserMedia stream can conflict with SpeechRecognition's
-    // own mic use, so we skip the meter there and rely on continuous + auto-restart.
-    if (isIOS || !navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) return;
-
-    var constraints = {
-      audio: {
-        echoCancellation: !sensitive.checked,   // off in high-sensitivity mode
-        noiseSuppression: !sensitive.checked,   // off lets soft speech through
-        autoGainControl: true                   // boosts quiet microphones
+    if (isMobile || !navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) return;
+    if (micStream) return;
+    navigator.mediaDevices.getUserMedia({ audio: true }).then(function (stream) {
+      if (!meterChk.checked || !listening) {
+        stream.getTracks().forEach(function (t) { t.stop(); });
+        return;
       }
-    };
-
-    navigator.mediaDevices.getUserMedia(constraints).then(function (stream) {
       micStream = stream;
       var AC = window.AudioContext || window.webkitAudioContext;
       if (!AC) return;
       audioCtx = new AC();
-      var src = audioCtx.createMediaStreamSource(stream);
       analyser = audioCtx.createAnalyser();
       analyser.fftSize = 512;
-      src.connect(analyser);
+      audioCtx.createMediaStreamSource(stream).connect(analyser);
       meterEl.classList.add("show");
       var data = new Uint8Array(analyser.frequencyBinCount);
-
       (function loop() {
         if (!analyser) return;
         analyser.getByteTimeDomainData(data);
         var sum = 0;
-        for (var i = 0; i < data.length; i++) {
-          var v = (data[i] - 128) / 128;
-          sum += v * v;
-        }
-        var rms = Math.sqrt(sum / data.length);
-        // Scale up so soft voices still register clearly (visual only).
-        var level = Math.min(100, Math.round(rms * 100 * 3.2));
-        meterFill.style.width = level + "%";
+        for (var i = 0; i < data.length; i++) { var v = (data[i] - 128) / 128; sum += v * v; }
+        meterFill.style.width = Math.min(100, Math.round(Math.sqrt(sum / data.length) * 320)) + "%";
         rafId = requestAnimationFrame(loop);
       })();
-    }).catch(function () {
-      // Meter is optional — never let its failure block recognition.
-    });
+    }).catch(function () {});
   }
 
   function stopMeter() {
     if (rafId) { cancelAnimationFrame(rafId); rafId = null; }
-    if (analyser) { analyser = null; }
+    analyser = null;
     if (audioCtx) { try { audioCtx.close(); } catch (e) {} audioCtx = null; }
     if (micStream) { micStream.getTracks().forEach(function (t) { t.stop(); }); micStream = null; }
     meterEl.classList.remove("show");
     meterFill.style.width = "0%";
   }
 
-  // ---------- Copy / Clear / counts ----------
-  copyBtn.addEventListener("click", function () {
-    var text = output.value;
-    if (!text) { flashCopy("Nothing to copy"); return; }
-
-    function done() {
-      copyBtn.classList.add("copied");
-      var old = copyBtn.textContent;
-      copyBtn.textContent = "Copied ✓";
-      setTimeout(function () { copyBtn.classList.remove("copied"); copyBtn.textContent = old; }, 1400);
-    }
-    if (navigator.clipboard && navigator.clipboard.writeText) {
-      navigator.clipboard.writeText(text).then(done, fallbackCopy);
-    } else {
-      fallbackCopy();
-    }
-    function fallbackCopy() {
-      output.focus();
-      output.select();
-      try { document.execCommand("copy"); done(); }
-      catch (e) { flashCopy("Press Ctrl/Cmd+C"); }
-      window.getSelection && window.getSelection().removeAllRanges();
-    }
-  });
-
-  function flashCopy(msg) {
-    var old = copyBtn.textContent;
-    copyBtn.textContent = msg;
-    setTimeout(function () { copyBtn.textContent = old; }, 1400);
+  // ===================== copy / share / clear =====================
+  function flash(btn, msg) {
+    var old = btn.dataset.label || btn.textContent;
+    btn.dataset.label = old;
+    btn.textContent = msg;
+    setTimeout(function () { btn.textContent = old; btn.classList.remove("copied"); }, 1500);
   }
 
+  copyBtn.addEventListener("click", function () {
+    var text = output.value;
+    if (!text) { flash(copyBtn, "Nothing to copy"); return; }
+    function done() { copyBtn.classList.add("copied"); flash(copyBtn, "Copied ✓"); }
+    function fallback() {
+      // iOS needs the field focused and a real selection range.
+      var ro = output.readOnly; output.readOnly = false;
+      output.focus();
+      output.setSelectionRange(0, text.length);
+      var ok = false;
+      try { ok = document.execCommand("copy"); } catch (e) {}
+      output.readOnly = ro;
+      output.setSelectionRange(text.length, text.length);
+      if (ok) done(); else flash(copyBtn, isMobile ? "Long-press to copy" : "Press Ctrl/Cmd+C");
+    }
+    if (navigator.clipboard && navigator.clipboard.writeText && window.isSecureContext) {
+      navigator.clipboard.writeText(text).then(done, fallback);
+    } else { fallback(); }
+  });
+
+  if (navigator.share) {
+    shareBtn.hidden = false;
+    shareBtn.addEventListener("click", function () {
+      var text = output.value;
+      if (!text) { flash(shareBtn, "Nothing to share"); return; }
+      navigator.share({ text: text }).catch(function () {});
+    });
+  }
+
+  var undoBuffer = null;
   clearBtn.addEventListener("click", function () {
-    output.value = "";
-    committed = "";
-    sessionFinal = "";
-    updateCounts();
+    if (clearBtn.dataset.mode === "undo") {
+      output.value = undoBuffer || "";
+      locked = output.value; segFinals = []; segMaxLen = 0; interim = "";
+      clearBtn.dataset.mode = ""; clearBtn.textContent = "Clear";
+      updateCounts(); saveNow();
+      return;
+    }
+    if (!output.value) return;
+    undoBuffer = output.value;
+    if (listening) hardRestart("clear");
+    output.value = ""; locked = ""; segFinals = []; segMaxLen = 0; interim = "";
+    updateCounts(); saveNow();
+    clearBtn.dataset.mode = "undo";
+    clearBtn.textContent = "Undo";
+    setTimeout(function () {
+      if (clearBtn.dataset.mode === "undo") { clearBtn.dataset.mode = ""; clearBtn.textContent = "Clear"; }
+    }, 8000);
     output.focus();
   });
 
-  // If the user edits the text by hand while not listening, keep counts fresh
-  // and treat their edit as the new base next time they start.
+  // ===================== manual editing =====================
+  // Typing while listening used to be wiped by the next render. Now an edit
+  // becomes the new permanent base and dictation continues after it.
   output.addEventListener("input", function () {
-    if (!listening) { committed = output.value; sessionFinal = ""; }
+    userEditing = true;
     updateCounts();
+    queueSave();
+    clearTimeout(output._editTimer);
+    output._editTimer = setTimeout(function () {
+      userEditing = false;
+      locked = output.value.replace(/\s+$/, "");
+      segFinals = []; segMaxLen = 0; interim = "";
+      if (listening) hardRestart("manual-edit");
+    }, 600);
   });
 
+  if (iosWebkit) {
+    setSub("iOS stops dictation every few seconds — this page stitches it back together.");
+  }
+
   updateCounts();
+  paintDiag();
 })();
 </script>
 </body>
