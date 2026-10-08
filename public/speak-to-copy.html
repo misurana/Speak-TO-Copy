@@ -514,7 +514,10 @@
   //     look like new content. This is why case C searches the whole transcript.
   //  7. `acc` grows ONLY through pushNew(), which applies the word-level
   //     replay trim. Never push to `acc` from anywhere else.
-  //  8. Any new engine quirk gets handled INSIDE absorb() by adding a match
+  //  8. A phrase that is a strict PREFIX of its neighbour is a stabilisation
+  //     step, not speech. Collapsing those can never lose a word, so it is
+  //     applied inside the list, across the committed boundary, and at flush.
+  //  9. Any new engine quirk gets handled INSIDE absorb() by adding a match
   //     case, never by adding another flush point.
   //
   //  The regression suite in test/ encodes cases 1-6. Run it before shipping.
@@ -534,6 +537,8 @@
   var emptyStreak  = 0;
   var stamps       = [];
   var resumeAfterHide = false;
+  var announced       = false;   // first-session banner shown
+  var reconnectNotice = null;
   var wakeLock     = null;
   var userEditing  = false;
 
@@ -584,6 +589,35 @@
   //   C. list trimmed  acc=[X,Y,Z]  cur=[Y,Z]        -> acc unchanged  <-- the bug
   //   D. list restarted acc=[X]     cur=[Y]          -> acc=[X,Y]
   // ---------------------------------------------------------------------
+  // Android Chrome does not replace a final as it stabilises -- it appends each
+  // step as its OWN final entry, so one spoken sentence arrives as:
+  //   ["this", "this is", "this is getting", "this is getting a little bit harder"]
+  // Collapse any run where each entry is a prefix of the next, keeping the
+  // longest. This can only ever DROP a strict prefix of text that is still
+  // present, so it cannot lose a word -- which is why it is safe to apply
+  // unconditionally, including across the committed boundary.
+  function collapsePrefix(list) {
+    var out = [];
+    for (var i = 0; i < list.length; i++) {
+      var cur = list[i];
+      if (out.length) {
+        var np = norm(out[out.length - 1]), nc = norm(cur);
+        if (nc === np) {
+          // Identical neighbours. A repeated multi-word phrase is the engine
+          // re-emitting a stabilisation step; a repeated single word is real
+          // speech ("nahin nahin", "no no") and is kept.
+          if (np.split(" ").length >= 2) continue;
+        } else if (nc.indexOf(np) === 0 && nc.charAt(np.length) === " ") {
+          out[out.length - 1] = cur; continue;        // strict word-aligned extension
+        } else if (np.indexOf(nc) === 0 && np.charAt(nc.length) === " ") {
+          continue;                                   // strict prefix of what we have
+        }
+      }
+      out.push(cur);
+    }
+    return out;
+  }
+
   // Final net: a replay that straddles a phrase boundary. Phrase matching
   // cannot see it, because the phrases genuinely differ -- the engine resends
   // only the TAIL of the last sentence glued to the start of the next:
@@ -633,6 +667,20 @@
   function absorb(cur) {
     if (!cur || !cur.length) return;
 
+    cur = collapsePrefix(cur);
+
+    // The same stabilisation chain, but split across a session boundary: the
+    // flush already committed "this", and the new session opens with
+    // "this is getting harder". Same prefix rule, same no-loss guarantee.
+    if (!acc.length && committed.length) {
+      var lastC = norm(committed[committed.length - 1]), firstN = norm(cur[0]);
+      if (firstN !== lastC && firstN.indexOf(lastC) === 0) {
+        committed.pop();
+        for (var q = 0; q < cur.length; q++) acc.push(cur[q]);
+        return;
+      }
+    }
+
     // A + B: index-aligned inside the CURRENT session. Everything before the
     // last entry matches, and the last either matches or was extended in place.
     if (acc.length && cur.length >= acc.length && sameSlice(acc, 0, cur, 0, acc.length - 1)) {
@@ -674,7 +722,14 @@
   function flushSegment() {
     // Dedup already happened in absorb(); this only moves phrases down a layer.
     for (var i = 0; i < acc.length; i++) {
-      if (acc[i]) { committed.push(acc[i]); segmentCount++; }
+      if (!acc[i]) continue;
+      if (committed.length) {
+        var np = norm(committed[committed.length - 1]), nc = norm(acc[i]);
+        if (nc.indexOf(np) === 0) { committed[committed.length - 1] = acc[i]; continue; }
+        if (np.indexOf(nc) === 0) { continue; }
+      }
+      committed.push(acc[i]);
+      segmentCount++;
     }
     acc = [];
     interim = "";
@@ -740,9 +795,18 @@
       starting = false;
       startFails = 0;
       lastActivity = Date.now();
-      setStatus("Listening… speak now.", "live");
-      setSub(isMobile ? "Keep this screen in front — phones stop dictation in the background."
-                      : "Speak naturally; pauses are fine.");
+      clearTimeout(reconnectNotice);
+      // Only announce on the FIRST session. Later restarts are an
+      // implementation detail the user should never see.
+      if (!announced) {
+        announced = true;
+        setStatus("Listening… speak now.", "live");
+        setSub(isMobile ? "Keep this screen in front — phones stop dictation in the background."
+                        : "Speak naturally; pauses are fine.");
+      } else if (/warn/.test(statusEl.className)) {
+        setStatus("Listening… speak now.", "live");
+        setSub("");
+      }
       micBtn.classList.add("listening");
       micBtn.setAttribute("aria-label", "Stop listening");
       paintDiag();
@@ -750,10 +814,7 @@
 
     r.onaudiostart  = function () { lastActivity = Date.now(); };
     r.onsoundstart  = function () { lastActivity = Date.now(); };
-    r.onspeechstart = function () {
-      lastActivity = Date.now();
-      setStatus("Hearing you…", "live");
-    };
+    r.onspeechstart = function () { lastActivity = Date.now(); };
 
     r.onresult = function (ev) {
       lastActivity = Date.now();
@@ -838,6 +899,7 @@
     };
 
     r.onend = function () {
+      var producedText = acc.length > 0;
       flushSegment();        // commit before anything else can touch the buffers
       render();
 
@@ -845,9 +907,12 @@
       if (!contChk.checked) { listening = false; finish(); return; }
 
       // Runaway guard
+      // Only a session that produced NO text counts toward the runaway guard.
+      // Productive restarts are normal on Android (one per sentence) and
+      // counting them was stopping long dictation mid-flow.
       var now = Date.now();
-      stamps.push(now);
-      stamps = stamps.filter(function (t) { return now - t < 20000; });
+      if (producedText) stamps = [];
+      else { stamps.push(now); stamps = stamps.filter(function (t) { return now - t < 20000; }); }
       if (stamps.length > 24) {
         listening = false;
         setStatus("Recognition keeps dropping out.", "err");
@@ -872,7 +937,19 @@
       paintDiag();
       clearTimeout(restartTimer);
       restartTimer = setTimeout(function () { if (listening) safeStart(); }, delay);
-      if (!/err|warn/.test(statusEl.className)) setSub("Reconnecting…");
+
+      // Do NOT touch the button or the status line here. On Android the engine
+      // ends after every utterance, so a minute of continuous speech is dozens
+      // of restarts; repainting the status and re-adding the listening class
+      // each time is what made the mic appear to flicker on and off. The UI now
+      // reflects the USER'S intent (`listening`), not the engine's session
+      // churn. Only a gap long enough to actually notice gets a message.
+      clearTimeout(reconnectNotice);
+      if (delay > 400) {
+        reconnectNotice = setTimeout(function () {
+          if (listening && !/err|warn/.test(statusEl.className)) setSub("Reconnecting…");
+        }, 1200);
+      }
     };
 
     return r;
@@ -922,6 +999,8 @@
   }
 
   function finish() {
+    announced = false;
+    clearTimeout(reconnectNotice);
     clearTimeout(restartTimer);
     clearInterval(watchdog); watchdog = null;
     micBtn.classList.remove("listening");
@@ -958,6 +1037,7 @@
     adoptText(output.value);
     listening = true;
     starting = false; startFails = 0; netRetries = 0; emptyStreak = 0; stamps = [];
+    announced = false;
     recognition = null;
 
     setStatus("Starting…", "live");
@@ -973,7 +1053,7 @@
     watchdog = setInterval(function () {
       if (!listening) return;
       var idle = Date.now() - lastActivity;
-      if (idle > (isMobile ? 7000 : 10000)) { droppedGuess++; hardRestart("watchdog"); }
+      if (idle > (isMobile ? 14000 : 12000)) { droppedGuess++; hardRestart("watchdog"); }
     }, 2000);
   }
 

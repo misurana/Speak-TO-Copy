@@ -105,9 +105,25 @@ const S3 = 'हम आगे चलते रहे पीछे नहीं �
 {
   const p = await page();
   await p.click('#micBtn'); await p.waitForTimeout(60);
-  await fire(p, [F('नहीं'), F('नहीं'), F('नहीं मैंने वो नहीं कहा')]);
-  check('6a one-word repeats kept', await val(p), 'नहीं नहीं नहीं मैंने वो नहीं कहा');
+  await fire(p, [F('नहीं नहीं नहीं मैंने वो नहीं कहा')]);
+  check('6a repeats inside one final are untouched', await val(p), 'नहीं नहीं नहीं मैंने वो नहीं कहा');
   await p.context().close();
+
+  // A repeated SINGLE word arriving as two finals is real speech, not a
+  // stabilisation step, and must survive. (A repeated multi-word phrase is
+  // the opposite call -- see 6c.)
+  const r = await page();
+  await r.click('#micBtn'); await r.waitForTimeout(60);
+  await fire(r, [F('नहीं'), F('नहीं'), F('मैंने वो नहीं कहा')]);
+  check('6a2 repeated single word kept', await val(r), 'नहीं नहीं मैंने वो नहीं कहा');
+  await r.context().close();
+
+  const t = await page();
+  await t.click('#micBtn'); await t.waitForTimeout(60);
+  await fire(t, [F('this is getting'), F('this is getting'), F('this is getting harder')]);
+  check('6c repeated multi-word phrase collapses', await val(t), 'this is getting harder');
+  await t.context().close();
+
 
   const q = await page();
   await q.click('#micBtn'); await q.waitForTimeout(60);
@@ -194,6 +210,77 @@ const S3 = 'हम आगे चलते रहे पीछे नहीं �
     if (i % 11 === 0) { await endS(p); await p.waitForTimeout(90); list = [F(s)]; } // restart + replay
   }
   check('11 40 sentences, no repeats, nothing lost', await val(p), said.join(' '));
+  await p.context().close();
+}
+
+
+// ---- 12. Android Chrome: every stabilisation step arrives as its OWN final ----
+{
+  const p = await page('Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Mobile Safari/537.36');
+  await p.click('#micBtn'); await p.waitForTimeout(60);
+  const steps = ['this','this is','this is getting','this is getting a','this is getting a little',
+                 'this is getting a little bit','this is getting a little bit harder'];
+  const list = [];
+  for (const st of steps) { list.push(F(st)); await fire(p, list); }
+  check('12a progressive finals collapse', await val(p), 'this is getting a little bit harder');
+
+  // same chain, but split across a session boundary
+  await endS(p); await p.waitForTimeout(150);
+  await fire(p, [F('this is getting a little bit harder still')]);
+  check('12b chain continues across restart', await val(p), 'this is getting a little bit harder still');
+  await p.context().close();
+}
+
+// ---- 13. prefix collapse must not eat a genuinely different sentence ----
+{
+  const p = await page();
+  await p.click('#micBtn'); await p.waitForTimeout(60);
+  await fire(p, [F('this is hard'), F('but we continue')]);
+  check('13 distinct sentences both kept', await val(p), 'this is hard but we continue');
+  await p.context().close();
+}
+
+// ---- 14. the mic must not visibly flicker across restarts ----
+{
+  const p = await page('Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Mobile Safari/537.36');
+  await p.click('#micBtn'); await p.waitForTimeout(60);
+  // Watch the listening class and status text across 15 engine restarts.
+  await p.evaluate(() => {
+    window.__flips = 0; window.__statusChanges = 0;
+    let wasListening = document.getElementById('micBtn').classList.contains('listening');
+    let lastStatus = document.getElementById('status').textContent;
+    window.__obs = setInterval(() => {
+      const nowL = document.getElementById('micBtn').classList.contains('listening');
+      if (nowL !== wasListening) { window.__flips++; wasListening = nowL; }
+      const nowS = document.getElementById('status').textContent;
+      if (nowS !== lastStatus) { window.__statusChanges++; lastStatus = nowS; }
+    }, 10);
+  });
+  for (let i = 0; i < 15; i++) {
+    await fire(p, [F('sentence ' + i)]);
+    await endS(p);
+    await p.waitForTimeout(80);
+  }
+  const o = await p.evaluate(() => { clearInterval(window.__obs);
+    return { flips: window.__flips, statusChanges: window.__statusChanges }; });
+  check('14a mic button never flickers off', o.flips, 0);
+  check('14b status line stays steady', o.statusChanges <= 1, true);
+  console.log('   (' + o.statusChanges + ' status change(s) over 15 restarts)');
+  await p.context().close();
+}
+
+// ---- 15. a long productive run is never stopped by the runaway guard ----
+{
+  const p = await page('Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Mobile Safari/537.36');
+  await p.click('#micBtn'); await p.waitForTimeout(60);
+  const said = [];
+  for (let i = 1; i <= 35; i++) {                 // 35 restarts inside 20s
+    const t = 'line ' + i; said.push(t);
+    await fire(p, [F(t)]); await endS(p); await p.waitForTimeout(25);
+  }
+  check('15a still listening after 35 productive restarts',
+        (await p.getAttribute('#micBtn','class')).includes('listening'), true);
+  check('15b nothing lost', await val(p), said.join(' '));
   await p.context().close();
 }
 
