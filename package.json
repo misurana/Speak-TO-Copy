@@ -6,7 +6,10 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "test": "node test/no-repeat.mjs",
+    "test:features": "node test/features.mjs",
+    "test:all": "node test/no-repeat.mjs && node test/features.mjs"
   },
   "dependencies": {
     "next": "16.3.3",
@@ -21,6 +24,7 @@
     "eslint": "^9",
     "eslint-config-next": "16.3.3",
     "tailwindcss": "^4",
-    "typescript": "^5"
+    "typescript": "^5",
+    "playwright": "^1.55.0"
   }
 }

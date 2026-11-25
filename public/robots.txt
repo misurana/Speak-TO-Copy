@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://speak-to-copy.vercel.app/sitemap.xml

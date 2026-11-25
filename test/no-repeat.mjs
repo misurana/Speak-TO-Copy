@@ -1,13 +1,23 @@
 // Regression suite for the STRICT NO-REPEAT INVARIANT in speak-to-copy.html.
 // Run: node test/no-repeat.mjs
-import pw from '/opt/npm-tools/node_modules/playwright/index.js'; const { chromium } = pw;
-import http from 'http'; import fs from 'fs'; import path from 'path';
+import { chromium } from 'playwright';
+import http from 'http'; import fs from 'fs'; import path from 'path'; import { fileURLToPath } from 'url';
 import { FAKE } from './engines.mjs';
 
-const root = path.dirname(new URL(import.meta.url).pathname);
-const html = fs.readFileSync(path.join(root, '..', 'speak-to-copy.html'));
-const srv = http.createServer((q, r) => { r.writeHead(200, {'Content-Type':'text/html'}); r.end(html); }).listen(8895);
-const b = await chromium.launch();
+const root = path.dirname(fileURLToPath(import.meta.url));
+const pub = path.join(root, '..', 'public');
+const MIME = { '.html': 'text/html', '.js': 'text/javascript', '.webmanifest': 'application/manifest+json', '.png': 'image/png', '.svg': 'image/svg+xml' };
+const srv = http.createServer((q, r) => {
+  var p = decodeURIComponent(q.url.split('?')[0]);
+  if (p === '/') p = '/speak-to-copy.html';
+  var f = path.join(pub, p);
+  if (!f.startsWith(pub) || !fs.existsSync(f) || fs.statSync(f).isDirectory()) { r.writeHead(404); r.end('nf'); return; }
+  r.writeHead(200, { 'Content-Type': MIME[path.extname(f)] || 'application/octet-stream' });
+  fs.createReadStream(f).pipe(r);
+}).listen(8895);
+const launchOpts = { args: ['--no-sandbox'] };
+if (process.env.CHROME_PATH) launchOpts.executablePath = process.env.CHROME_PATH;
+const b = await chromium.launch(launchOpts);
 
 let fails = 0;
 function check(name, got, want) {
@@ -22,7 +32,10 @@ async function page(ua) {
   p.on('pageerror', e => errs.push('pageerror: ' + e.message));
   p.on('console', m => { if (m.type() === 'error') errs.push('console: ' + m.text()); });
   await p.addInitScript(FAKE);
-  await p.addInitScript(`try{localStorage.clear()}catch(e){}`);
+  // Translation OFF here: this suite tests absorb() itself, and a live
+  // network round-trip would delay the text and mask the invariant.
+  // Translation is covered separately in test/features.mjs Section 11.
+  await p.addInitScript(`try{localStorage.clear(); localStorage.setItem('stc.translate','0')}catch(e){}`);
   await p.goto('http://127.0.0.1:8895/');
   p.__errs = errs; return p;
 }
